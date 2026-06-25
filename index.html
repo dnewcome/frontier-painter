@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Frontier Painter — Slice 1</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        font-family: system-ui, sans-serif;
+      }
+      #renderCanvas {
+        width: 100vw;
+        height: 100vh;
+        display: block;
+        touch-action: none;
+        outline: none;
+      }
+      #hud {
+        position: fixed;
+        top: 0;
+        left: 0;
+        padding: 10px 12px;
+        color: #cfe8ff;
+        font-size: 13px;
+        line-height: 1.4;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+        white-space: pre;
+        z-index: 10;
+      }
+      #hud .win-banner {
+        display: none;
+        margin-top: 8px;
+        padding: 6px 10px;
+        background: rgba(0, 160, 80, 0.85);
+        color: #fff;
+        font-weight: 700;
+        border-radius: 4px;
+      }
+      #hud.won .win-banner {
+        display: inline-block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="renderCanvas"></canvas>
+    <div id="hud"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+node_modules
+dist
+test-results
+playwright-report
+.tmp
+*.tsbuildinfo
+
+# scratch / temp
+scratchpad
+.verify-*.mjs
+.snapshot-tmp.mjs
+
+# generated demo media — regenerate with: npm run playthrough
+# (DEMO.md files are kept; the gifs/videos/frames are not committed)
+frames
+video
+*.mp4
+*.gif
+*.webm
+demos/_*.png
