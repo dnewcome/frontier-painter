@@ -4,12 +4,17 @@
 import { Color4 } from "@babylonjs/core/Maths/math.color";
 import "@babylonjs/core/Meshes/meshBuilder";
 import "@babylonjs/core/Collisions/collisionCoordinator";
+// Side-effect: registers Ray.intersectsPlane / scene picking used by the drawing
+// and paint aim-rays. Without it Babylon throws "Ray needs to be imported before
+// as it contains a side-effect required by your code" on the first pointer-pick.
+import "@babylonjs/core/Culling/ray";
 
 import { DEFAULT_CONFIG } from "./types";
 import { createGameEngine, createCameraRig } from "./core/engine";
 import { createWorld } from "./world/room";
 import { createDressing } from "./dressing/dressing";
 import { createDrawing } from "./drawing/drawing";
+import { createPaintField } from "./paint/paintField";
 import { createPlayer } from "./player/player";
 import { createAvatar } from "./player/avatar";
 import { createHud } from "./hud/hud";
@@ -46,6 +51,10 @@ function boot(): void {
   // and never relies on pointer input.
   drawing.setInputEnabled(false);
 
+  // Property-paint targets (the core verb). Shares the drawing registry so a
+  // repaired "cold" surface can freeze into a grabbable handhold.
+  const paintField = createPaintField(game.scene, drawing.registry);
+
   const player = createPlayer(game.scene, drawing.registry, config);
   // Cosmetic third-person embodiment (the collision body itself is invisible).
   const avatar = createAvatar(game.scene);
@@ -63,10 +72,15 @@ function boot(): void {
     player,
     world,
     registry: drawing.registry,
+    paintField,
     hud,
     config,
     avatar,
   });
+
+  // Headed play boots straight into the first paint puzzle. The deterministic
+  // boots capture explicitly calls loadScenario("none") to run the empty room.
+  api.loadScenario("frostgap");
 
   // Real human controls for headed play (keyboard thrust/walk + boots + grab +
   // camera + draw). Boots default OFF (player.reset() spawns floating), so the
@@ -78,9 +92,12 @@ function boot(): void {
     engine: game,
     player,
     drawing,
+    paintField,
     camera,
     config,
     reset: () => api.reset(),
+    selectColor: (c) => api.selectColor(c),
+    paint: (id) => api.paint(id),
   });
 
   game.start();

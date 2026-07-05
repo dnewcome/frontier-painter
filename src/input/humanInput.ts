@@ -24,18 +24,24 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Axis } from "@babylonjs/core/Maths/math.axis";
 import type { Player } from "../player/player";
 import type { Drawing } from "../drawing/drawing";
+import type { PaintField } from "../paint/paintField";
 import type { CameraRig } from "../core/camera";
 import type { GameEngine } from "../core/engine";
-import type { CameraMode, SimConfig } from "../types";
+import { PAINT_PALETTE, type CameraMode, type PaintProperty, type SimConfig } from "../types";
 
 export interface HumanInputDeps {
   scene: Scene;
   engine: GameEngine;
   player: Player;
   drawing: Drawing;
+  paintField: PaintField;
   camera: CameraRig;
   config: SimConfig;
   reset: () => void;
+  /** Select the brush color (routes through automation so the HUD stays synced). */
+  selectColor: (color: PaintProperty) => void;
+  /** Paint the broken surface `id` with the selected color; true iff repaired. */
+  paint: (id: string) => boolean;
 }
 
 /** Thrust acceleration (m/s^2) applied while a movement key is held (floating).
@@ -45,8 +51,26 @@ const THRUST_ACCEL = 7;
 const LOOK_SENS = 0.0025;
 
 export function createHumanInput(deps: HumanInputDeps): void {
-  const { scene, engine, player, drawing, camera, config, reset } = deps;
+  const { scene, engine, player, drawing, paintField, camera, config, reset } =
+    deps;
   const pressed = new Set<string>();
+
+  // Paint the broken surface under the cursor with the selected color. The brush
+  // ray uses the live pointer position (a visible cursor while floating), so the
+  // player aims at a surface and presses F. Deterministic automation never uses
+  // this path — the scripted playthrough calls window.game.paint(id) directly.
+  const paintUnderCursor = (): void => {
+    const pick = scene.pick(
+      scene.pointerX,
+      scene.pointerY,
+      (m) => paintField.idForMesh(m) !== null,
+    );
+    if (!pick?.hit || !pick.pickedMesh) return;
+    // Only paint within reach so you can't repair a surface across the whole ship.
+    if (pick.distance > config.paintReach) return;
+    const id = paintField.idForMesh(pick.pickedMesh);
+    if (id) deps.paint(id);
+  };
 
   // Reusable scratch so the per-step hook allocates nothing.
   const dir = new Vector3();
@@ -204,6 +228,20 @@ export function createHumanInput(deps: HumanInputDeps): void {
         case "KeyI":
           invertY = !invertY;
           localStorage.setItem("fp_invertY", invertY ? "1" : "0");
+          break;
+        // Brush palette: pick the physical property to paint (1 cold, 2
+        // conductive, 3 magnetic), then F paints the surface under the cursor.
+        case "Digit1":
+          deps.selectColor(PAINT_PALETTE[0]);
+          break;
+        case "Digit2":
+          deps.selectColor(PAINT_PALETTE[1]);
+          break;
+        case "Digit3":
+          deps.selectColor(PAINT_PALETTE[2]);
+          break;
+        case "KeyF":
+          paintUnderCursor();
           break;
       }
     }

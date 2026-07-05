@@ -10,7 +10,8 @@
     "typecheck": "tsc -b --noEmit",
     "test:e2e": "playwright test",
     "capture:video": "node scripts/capture.mjs",
-    "playthrough": "node playthrough/run.mjs"
+    "playthrough": "node playthrough/run.mjs",
+    "playthrough:paint": "CAPTURE_FILE=capture-paint.mjs RUN_LABEL=frostgap node playthrough/run.mjs"
   },
   "dependencies": {
     "@babylonjs/core": "^7.0.0"

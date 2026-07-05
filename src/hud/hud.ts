@@ -3,7 +3,7 @@
 // state (grab flag, handhold count, distance-to-goal, controls hint) and a win
 // banner. Stateless beyond DOM nodes + a tiny render cache; refreshed each frame
 // from a GameState snapshot.
-import type { GameState } from "../types";
+import { PAINT_PALETTE, type GameState } from "../types";
 
 export interface Hud {
   /** Refresh overlay text from the latest snapshot (call each frame). */
@@ -66,16 +66,39 @@ class HudImpl implements Hud {
       ? `boots: ON  surface↑: ${fmtVec(state.surfaceNormal)}  facing: ${fmtVec(state.facing)}`
       : "boots: off (floating)";
 
+    // Property-paint palette + repair checklist (only while a scenario is armed).
+    const paintLines: string[] = [];
+    if (state.paintSurfaces.length > 0) {
+      const palette = PAINT_PALETTE.map((c) =>
+        c === state.selectedColor ? `[${c}]` : ` ${c} `,
+      ).join(" ");
+      paintLines.push(`brush: ${palette}`);
+      for (const s of state.paintSurfaces) {
+        const status = s.satisfied
+          ? "repaired"
+          : s.painted
+            ? `painted ${s.painted}?`
+            : "BROKEN";
+        paintLines.push(`  ${s.satisfied ? "✓" : "✗"} ${s.label} — needs ${s.required} · ${status}`);
+      }
+      paintLines.push(
+        state.paintComplete
+          ? "  console: POWERED"
+          : "  console: locked (repair all surfaces)",
+      );
+    }
+
     const lines = [
-      "FRONTIER PAINTER — Slice 1",
+      "FRONTIER PAINTER",
       `ready: ${state.ready ? "yes" : "no"}   camera: ${state.cameraMode}`,
       `pos: ${fmtVec(p)}`,
       `vel: ${fmtVec(state.velocity)}  |v|=${speed.toFixed(2)} m/s`,
       grabLine,
       bootsLine,
+      ...paintLines,
       `handholds: ${state.handholds.length}   ${goalLine}`,
       `elapsed: ${state.elapsed.toFixed(2)}s`,
-      "controls: B boots · WASD walk/thrust · mouse look · Space jump/grab · C cam · R reset",
+      "controls: 1/2/3 color · F paint · B boots · WASD move · mouse look · Space grab/jump · C cam · R reset",
     ];
 
     const text = lines.join("\n");

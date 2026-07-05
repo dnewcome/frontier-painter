@@ -1,7 +1,13 @@
 // src/gameApi.ts  (OWNED BY Scaffold/Integration step — public automation contract)
 // The deterministic surface mounted at window.game. Every method drives the
 // simulation directly; NO synthetic pointer/mouse events are ever required.
-import type { Vec3, HandholdId, CameraMode, GameState } from "./types";
+import type {
+  Vec3,
+  HandholdId,
+  CameraMode,
+  GameState,
+  PaintProperty,
+} from "./types";
 
 export interface GameApi {
   /** Resolves once engine + scene exist and the first frame has rendered. */
@@ -76,6 +82,25 @@ export interface GameApi {
 
   /** Detach + impulse `speed` (m/s) along the current surface normal (jump off). */
   pushOff(speed: number): void;
+
+  // ---- property painting (additive; existing methods unchanged) ----
+
+  /**
+   * Load a puzzle scenario. "frostgap" arms the paint targets and gates the
+   * console on repairing them; "none" clears them (the empty legacy room). Resets
+   * target state. Setup-only (like reset), so determinism is preserved.
+   */
+  loadScenario(name: "none" | "frostgap"): void;
+
+  /** Choose the brush palette color subsequent paint() calls apply. */
+  selectColor(color: PaintProperty): void;
+
+  /**
+   * Paint the broken surface `id` with the currently-selected color. Returns true
+   * iff it repaired the surface (the color matched its required property).
+   * Deterministic: no pointer input, no time/RNG reads.
+   */
+  paint(id: string): boolean;
 }
 
 declare global {

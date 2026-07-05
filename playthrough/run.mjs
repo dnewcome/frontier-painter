@@ -21,6 +21,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 
 const RUN_LABEL = process.env.RUN_LABEL || process.argv[2] || "latest";
+// Which capture script to drive (default: the magnetic-boots locomotion slice).
+// `playthrough:paint` sets CAPTURE_FILE=capture-paint.mjs for the paint slice.
+const CAPTURE_FILE = process.env.CAPTURE_FILE || "capture.mjs";
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 4173);
 const BASE_URL = `http://${HOST}:${PORT}`;
@@ -119,7 +122,8 @@ async function main() {
     console.log("[run] preview is up; running capture...");
 
     // 4. Run the capture against the live server.
-    await run(process.execPath, [path.join(__dirname, "capture.mjs")], {
+    console.log(`[run] capture script: ${CAPTURE_FILE}`);
+    await run(process.execPath, [path.join(__dirname, CAPTURE_FILE)], {
       env: { ...process.env, BASE_URL, RUN_LABEL },
     });
   } finally {

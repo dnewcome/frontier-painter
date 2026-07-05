@@ -1,10 +1,14 @@
 # Frontier Painter
 
 A puzzle-game prototype: you're a painter aboard a generation ship who wakes
-early because of a software bug, and you solve your way through the ship by
-**drawing in zero gravity**. Strokes you draw freeze into collidable
-**handholds** you grab and pull along; **magnetic boots** let you walk across any
-surface — floor, walls, ceiling — and release to float and paint.
+early because of a software bug. The ship's reality is software-rendered, and the
+bug is corrupting it — so you repair the ship the only way a painter can: you
+**paint physical properties back onto broken surfaces**. Your palette isn't
+colors, it's *physics* — paint a dead rail `cold` and it frosts into a grabbable
+**handhold**, paint a dead conduit `conductive` and it re-powers a door. Each
+broken surface takes exactly **one** correct property ("right property, right
+place") — the puzzle is deducing which. **Magnetic boots** let you walk across
+any surface — floor, walls, ceiling — and release to float and paint.
 
 Built with **TypeScript + Vite + Babylon.js**. Movement uses Babylon's built-in
 collisions (`mesh.moveWithCollisions` + ellipsoid) plus a **custom kinematic
@@ -18,13 +22,19 @@ deliberately deferred. The room is dressed procedurally as a clean utilitarian
 
 ## Controls
 
+- **1 / 2 / 3** — select brush property: cold · conductive · magnetic
+- **F** — paint the broken surface under the cursor with the selected property
 - **B** — toggle magnetic boots (plant / float). First-person while booted.
 - **WASD** — walk + strafe (booted) / thrust (floating)
 - **Mouse** — look (booted). Click the view to capture the cursor; **Esc** releases.
 - **I** — invert vertical mouse-look (remembered)
 - **Space** — push off a surface (booted) / grab–release a handhold (floating)
-- **Left-drag** (floating, first-person) — draw a stroke
+- **Left-drag** (floating, first-person) — draw a stroke (legacy handhold verb)
 - **C** — toggle demo / first-person camera · **R** — reset
+
+Headed play boots straight into the **Frost Gap** paint puzzle. The palette + a
+per-surface repair checklist show in the HUD; the console won't power until every
+broken surface is repaired.
 
 ## Quick start
 
@@ -44,7 +54,10 @@ automation API through a scripted sequence of "beats", screenshots each beat,
 records a video, and transcodes it to a small `demo.gif` + `demo.mp4`.
 
 ```bash
-# Generate the default demo into demos/latest/
+# Property-paint slice ("The Frost Gap") -> demos/frostgap/
+npm run playthrough:paint
+
+# Magnetic-boots locomotion slice -> demos/latest/
 npm run playthrough
 
 # Generate a named/official demo into demos/<label>/
@@ -52,6 +65,14 @@ RUN_LABEL=slice-magboots npm run playthrough
 #   ...also accepted as a positional arg:
 npm run playthrough -- slice-magboots
 ```
+
+There are two capture scripts, selected via the `CAPTURE_FILE` env that
+`run.mjs` honors: `capture-paint.mjs` (the paint verb — arms the `frostgap`
+scenario, demonstrates the *wrong-color* rejection, repairs the rail `cold`,
+crosses to the **locked** console, powers it `conductive`, and wins) and
+`capture.mjs` (the boots locomotion slice, which runs in the empty `"none"`
+room). Both assert `goalReached === true` and a byte-identical determinism
+replay, so each doubles as an end-to-end smoke test.
 
 The current demo is the **magnetic-boots** slice: it plants the boots, walks
 **floor → wall → ceiling** (filmed from the tracking `demo` camera, with one

@@ -28,6 +28,9 @@ async function gotoReady(page: Page): Promise<void> {
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, {
     timeout: 30_000,
   });
+  // This is the locomotion slice: run in the empty room (headed play defaults to
+  // the frostgap paint scenario, which would gate the goal on repaired surfaces).
+  await page.evaluate(() => window.game.loadScenario("none"));
 }
 
 function consoleErrors(page: Page): string[] {

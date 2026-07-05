@@ -203,7 +203,9 @@ async function main() {
       { timeout: 30_000 },
     );
     const s1 = await page.evaluate(() => {
-      window.game.reset();
+      // This is the LOCOMOTION slice: run in the empty room (no paint targets,
+      // ungated console). loadScenario("none") also performs a full reset.
+      window.game.loadScenario("none");
       window.game.setCameraMode("demo");
       return window.game.getState();
     });

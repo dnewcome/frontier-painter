@@ -11,6 +11,7 @@ import type { Player } from "../player/player";
 import type { Avatar } from "../player/avatar";
 import type { World } from "../world/room";
 import type { HandholdRegistry } from "../drawing/drawing";
+import type { PaintField, ScenarioName } from "../paint/paintField";
 import type { Hud } from "../hud/hud";
 import type {
   SimConfig,
@@ -18,6 +19,7 @@ import type {
   Vec3,
   HandholdId,
   CameraMode,
+  PaintProperty,
 } from "../types";
 
 export interface AutomationDeps {
@@ -26,6 +28,7 @@ export interface AutomationDeps {
   player: Player;
   world: World;
   registry: HandholdRegistry;
+  paintField: PaintField;
   hud: Hud;
   config: SimConfig;
   /** Cosmetic third-person player figure; posed in the per-frame observer. */
@@ -38,10 +41,11 @@ class AutomationImpl implements GameApi {
   private readonly deps: AutomationDeps;
   private elapsed = 0;
   private _isReady = false;
+  private selectedColor: PaintProperty = "cold";
 
   constructor(deps: AutomationDeps) {
     this.deps = deps;
-    const { engine, player, world, camera, hud } = deps;
+    const { engine, player, world, camera, hud, paintField } = deps;
 
     // Wire the player integrator and the goal/elapsed bookkeeping into the
     // engine's fixed-step pump (used by both rAF and runFixedSteps).
@@ -51,7 +55,14 @@ class AutomationImpl implements GameApi {
     engine.addFixedStepHook({
       onFixedStep: (dt) => {
         this.elapsed += dt;
-        if (!world.goal.reached() && world.goal.isReached(player.getPosition())) {
+        // The console latches only once the player is in range AND every armed
+        // paint target is repaired (paintField.complete() is vacuously true in
+        // the empty "none" scenario, so the legacy boots slice is unaffected).
+        if (
+          !world.goal.reached() &&
+          world.goal.isReached(player.getPosition()) &&
+          paintField.complete()
+        ) {
           world.goal.setReached(true);
         }
       },
@@ -91,6 +102,10 @@ class AutomationImpl implements GameApi {
   reset(): void {
     this.deps.registry.clear();
     this.deps.world.reset();
+    // paintField AFTER registry.clear() so any rail handhold it registered is
+    // gone before it re-arms its targets to the broken state.
+    this.deps.paintField.reset();
+    this.selectedColor = "cold";
     this.deps.player.reset();
     this.elapsed = 0;
     this.deps.hud.update(this.getState());
@@ -150,6 +165,26 @@ class AutomationImpl implements GameApi {
     this.deps.player.pushOff(speed);
   }
 
+  // ---- property painting ----
+
+  loadScenario(name: ScenarioName): void {
+    this.deps.paintField.setScenario(name);
+    // Full reset so the player is at spawn and the registry/world are clean for
+    // the freshly-armed scenario.
+    this.reset();
+  }
+
+  selectColor(color: PaintProperty): void {
+    this.selectedColor = color;
+    this.deps.hud.update(this.getState());
+  }
+
+  paint(id: string): boolean {
+    const ok = this.deps.paintField.paint(id, this.selectedColor);
+    this.deps.hud.update(this.getState());
+    return ok;
+  }
+
   step(dtSeconds: number, steps = 1): GameState {
     this.deps.engine.runFixedSteps(dtSeconds, steps);
     this.deps.hud.update(this.getState());
@@ -173,6 +208,9 @@ class AutomationImpl implements GameApi {
       surfaceNormal: player.getSurfaceNormal(),
       up: player.getUp(),
       facing: player.getFacing(),
+      selectedColor: this.selectedColor,
+      paintSurfaces: this.deps.paintField.states(),
+      paintComplete: this.deps.paintField.complete(),
     };
   }
 }

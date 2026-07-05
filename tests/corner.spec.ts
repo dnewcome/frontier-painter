@@ -15,6 +15,8 @@ async function gotoReady(page: Page): Promise<void> {
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, {
     timeout: 30_000,
   });
+  // Locomotion slice: run in the empty room (headed play defaults to frostgap).
+  await page.evaluate(() => window.game.loadScenario("none"));
 }
 
 // Walk into a corner, push off, and step; report the worst-case results.

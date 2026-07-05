@@ -9,6 +9,37 @@ export type HandholdId = string;
 
 export type CameraMode = "demo" | "fp";
 
+/**
+ * A physical property the brush can paint onto a broken ("un-rendered") surface.
+ * The core verb: the ship's reality is software-rendered and the bug corrupts it;
+ * the painter repaints the correct PHYSICS back onto a surface to repair it.
+ */
+export type PaintProperty = "cold" | "conductive" | "magnetic";
+
+/** The brush palette, in display / cycle order. */
+export const PAINT_PALETTE: readonly PaintProperty[] = [
+  "cold",
+  "conductive",
+  "magnetic",
+];
+
+/**
+ * A paintable ("broken") surface in the active scenario. Puzzle rule
+ * ("right property, right place"): exactly one property repairs it; painting any
+ * other property is rejected and does nothing.
+ */
+export interface PaintSurfaceState {
+  id: string;
+  /** Fiction label for the HUD, e.g. "Access rail". */
+  label: string;
+  /** The single property that repairs this surface. */
+  required: PaintProperty;
+  /** Correctly-applied property, or null while still broken. */
+  painted: PaintProperty | null;
+  /** True once `painted === required`. */
+  satisfied: boolean;
+}
+
 /** A frozen handhold tube created from a drawn stroke. */
 export interface HandholdState {
   id: HandholdId;
@@ -42,6 +73,13 @@ export interface GameState {
   up: Vec3;
   /** Unit tangent facing (booted) or forward heading (floating). */
   facing: Vec3;
+  // ---- property painting (additive; empty/neutral when no scenario armed) ----
+  /** Brush palette color currently selected. */
+  selectedColor: PaintProperty;
+  /** Broken surfaces in the active scenario (empty when unarmed). */
+  paintSurfaces: PaintSurfaceState[];
+  /** True when every armed surface is satisfied (vacuously true when none). */
+  paintComplete: boolean;
 }
 
 /** Tunable simulation constants shared across player + drawing + world. */
@@ -79,6 +117,9 @@ export interface SimConfig {
   reEngageDistance: number;
   /** Default push-off impulse (m/s) when detaching from a surface. */
   pushOffSpeed: number;
+  // ---- property painting (additive) ----
+  /** Max distance (m) at which a human aim-ray will paint a broken surface. */
+  paintReach: number;
 }
 
 /** Canonical default tuning for slice 1. Scaffold may freeze and pass this in. */
@@ -99,4 +140,5 @@ export const DEFAULT_CONFIG: SimConfig = {
   surfaceTweenSteps: 18, // ~0.3 s at 1/60
   reEngageDistance: 1.5,
   pushOffSpeed: 3.0,
+  paintReach: 12,
 };
