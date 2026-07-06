@@ -74,6 +74,11 @@ class HudImpl implements Hud {
       ).join(" ");
       paintLines.push(`brush: ${palette}`);
       for (const s of state.paintSurfaces) {
+        if (!s.available) {
+          // Prerequisite unrepaired: don't reveal the required property yet.
+          paintLines.push(`  ⊘ ${s.label} — LOCKED (blocked by another surface)`);
+          continue;
+        }
         const status = s.satisfied
           ? "repaired"
           : s.painted
@@ -98,7 +103,7 @@ class HudImpl implements Hud {
       ...paintLines,
       `handholds: ${state.handholds.length}   ${goalLine}`,
       `elapsed: ${state.elapsed.toFixed(2)}s`,
-      "controls: 1/2/3 color · F paint · B boots · WASD move · mouse look · Space grab/jump · C cam · R reset",
+      "controls: 1/2/3 color · F paint · P room · B boots · WASD move · mouse look · Space grab/jump · C cam · R reset",
     ];
 
     const text = lines.join("\n");

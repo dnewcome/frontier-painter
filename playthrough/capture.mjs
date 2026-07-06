@@ -137,8 +137,10 @@ const TARGET_MAX_SECONDS = 9;
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
-  // Fresh output dir for this label so the run is idempotent / re-runnable.
-  rmSync(outDir, { recursive: true, force: true });
+  // Fresh media for this label so the run is idempotent / re-runnable — but wipe
+  // only frames/ + video/, preserving any hand-written DEMO.md kept in git.
+  rmSync(framesDir, { recursive: true, force: true });
+  rmSync(videoDir, { recursive: true, force: true });
   mkdirSync(framesDir, { recursive: true });
   mkdirSync(videoDir, { recursive: true });
 

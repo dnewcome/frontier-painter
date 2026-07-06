@@ -38,6 +38,10 @@ export interface PaintSurfaceState {
   painted: PaintProperty | null;
   /** True once `painted === required`. */
   satisfied: boolean;
+  /** False while a prerequisite surface is unrepaired — painting is rejected
+   *  ("right property, right place, right ORDER"). Always true when no
+   *  prerequisite. */
+  available: boolean;
 }
 
 /** A frozen handhold tube created from a drawn stroke. */

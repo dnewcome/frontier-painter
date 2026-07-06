@@ -24,6 +24,7 @@ deliberately deferred. The room is dressed procedurally as a clean utilitarian
 
 - **1 / 2 / 3** — select brush property: cold · conductive · magnetic
 - **F** — paint the broken surface under the cursor with the selected property
+- **P** — switch room (Frost Gap ⇄ Cross-Wired Junction)
 - **B** — toggle magnetic boots (plant / float). First-person while booted.
 - **WASD** — walk + strafe (booted) / thrust (floating)
 - **Mouse** — look (booted). Click the view to capture the cursor; **Esc** releases.
@@ -32,9 +33,20 @@ deliberately deferred. The room is dressed procedurally as a clean utilitarian
 - **Left-drag** (floating, first-person) — draw a stroke (legacy handhold verb)
 - **C** — toggle demo / first-person camera · **R** — reset
 
-Headed play boots straight into the **Frost Gap** paint puzzle. The palette + a
-per-surface repair checklist show in the HUD; the console won't power until every
-broken surface is repaired.
+Headed play boots straight into the **Frost Gap** paint puzzle; press **P** to
+switch to the **Cross-Wired Junction**. The palette + a per-surface repair
+checklist show in the HUD; the console won't power until every broken surface is
+repaired.
+
+Two puzzle rooms exist so far:
+
+- **The Frost Gap** — two *independent* surfaces: frost a dead rail (`cold`) into
+  a handhold to cross, and make a conduit (`conductive`) to power the console.
+- **The Cross-Wired Junction** — an *ordered chain*: the console core is hidden
+  behind a coolant shroud. Frost the shroud (`cold`) to retract it and **reveal**
+  the core, which you then make `conductive`. Painting the core before the shroud
+  is repaired is rejected as inaccessible — "right property, right place, right
+  **order**".
 
 ## Quick start
 
@@ -56,6 +68,9 @@ records a video, and transcodes it to a small `demo.gif` + `demo.mp4`.
 ```bash
 # Property-paint slice ("The Frost Gap") -> demos/frostgap/
 npm run playthrough:paint
+
+# Interaction slice ("The Cross-Wired Junction") -> demos/crosswire/
+npm run playthrough:crosswire
 
 # Magnetic-boots locomotion slice -> demos/latest/
 npm run playthrough

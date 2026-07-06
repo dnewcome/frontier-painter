@@ -90,7 +90,7 @@ export interface GameApi {
    * console on repairing them; "none" clears them (the empty legacy room). Resets
    * target state. Setup-only (like reset), so determinism is preserved.
    */
-  loadScenario(name: "none" | "frostgap"): void;
+  loadScenario(name: "none" | "frostgap" | "crosswire"): void;
 
   /** Choose the brush palette color subsequent paint() calls apply. */
   selectColor(color: PaintProperty): void;

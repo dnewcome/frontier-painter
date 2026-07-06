@@ -97,7 +97,9 @@ function surf(state, id) {
 }
 
 async function main() {
-  rmSync(outDir, { recursive: true, force: true });
+  // Wipe only the regenerated media (NOT the hand-written DEMO.md kept in git).
+  rmSync(framesDir, { recursive: true, force: true });
+  rmSync(videoDir, { recursive: true, force: true });
   mkdirSync(framesDir, { recursive: true });
   mkdirSync(videoDir, { recursive: true });
   log(`BASE_URL=${BASE_URL}  RUN_LABEL=${RUN_LABEL}`);

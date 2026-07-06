@@ -98,6 +98,11 @@ function boot(): void {
     reset: () => api.reset(),
     selectColor: (c) => api.selectColor(c),
     paint: (id) => api.paint(id),
+    cycleScenario: () => {
+      const rooms = ["frostgap", "crosswire"] as const;
+      const i = rooms.indexOf(paintField.scenario() as (typeof rooms)[number]);
+      api.loadScenario(rooms[(i + 1) % rooms.length]);
+    },
   });
 
   game.start();

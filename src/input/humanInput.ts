@@ -42,6 +42,8 @@ export interface HumanInputDeps {
   selectColor: (color: PaintProperty) => void;
   /** Paint the broken surface `id` with the selected color; true iff repaired. */
   paint: (id: string) => boolean;
+  /** Load the next playable paint scenario (dev/demo affordance). */
+  cycleScenario: () => void;
 }
 
 /** Thrust acceleration (m/s^2) applied while a movement key is held (floating).
@@ -242,6 +244,9 @@ export function createHumanInput(deps: HumanInputDeps): void {
           break;
         case "KeyF":
           paintUnderCursor();
+          break;
+        case "KeyP":
+          deps.cycleScenario(); // switch rooms (frostgap <-> crosswire)
           break;
       }
     }
