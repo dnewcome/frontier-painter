@@ -23,14 +23,16 @@ deliberately deferred. The room is dressed procedurally as a clean utilitarian
 ## Controls
 
 - **1 / 2 / 3** — select brush property: cold · conductive · magnetic
-- **F** — paint the broken surface under the cursor with the selected property
+- **F** — paint the broken surface at the crosshair with the selected property
 - **P** — switch room (Frost Gap ⇄ Cross-Wired Junction)
 - **B** — toggle magnetic boots (plant / float). First-person while booted.
 - **WASD** — walk + strafe (booted) / thrust (floating)
-- **Mouse** — look (booted). Click the view to capture the cursor; **Esc** releases.
-- **I** — invert vertical mouse-look (remembered)
+- **Mouse** — look (floating *and* booted). Vertical look is inverted (mouse up →
+  look up). **Click the view to capture the cursor** so it can't leave the
+  window; **Esc** releases it.
 - **Space** — push off a surface (booted) / grab–release a handhold (floating)
-- **Left-drag** (floating, first-person) — draw a stroke (legacy handhold verb)
+- **Left-drag** (floating, first-person, cursor released) — draw a stroke (legacy
+  handhold verb)
 - **C** — toggle demo / first-person camera · **R** — reset
 
 Headed play boots straight into the **Frost Gap** paint puzzle; press **P** to

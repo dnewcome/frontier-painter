@@ -57,19 +57,18 @@ export function createHumanInput(deps: HumanInputDeps): void {
     deps;
   const pressed = new Set<string>();
 
-  // Paint the broken surface under the cursor with the selected color. The brush
-  // ray uses the live pointer position (a visible cursor while floating), so the
-  // player aims at a surface and presses F. Deterministic automation never uses
-  // this path — the scripted playthrough calls window.game.paint(id) directly.
-  const paintUnderCursor = (): void => {
-    const pick = scene.pick(
-      scene.pointerX,
-      scene.pointerY,
-      (m) => paintField.idForMesh(m) !== null,
-    );
+  // Paint the broken surface the player is AIMING at (screen-center crosshair =
+  // camera forward), then press F. Casting from the camera forward ray works
+  // whether or not the pointer is locked, and matches the visible crosshair. The
+  // ray is length-limited to paintReach so you can't repair the whole ship.
+  // Deterministic automation never uses this path — the scripted playthrough
+  // calls window.game.paint(id) directly.
+  const paintAtCrosshair = (): void => {
+    const cam = scene.activeCamera;
+    if (!cam) return;
+    const ray = cam.getForwardRay(config.paintReach);
+    const pick = scene.pickWithRay(ray, (m) => paintField.idForMesh(m) !== null);
     if (!pick?.hit || !pick.pickedMesh) return;
-    // Only paint within reach so you can't repair a surface across the whole ship.
-    if (pick.distance > config.paintReach) return;
     const id = paintField.idForMesh(pick.pickedMesh);
     if (id) deps.paint(id);
   };
@@ -89,9 +88,6 @@ export function createHumanInput(deps: HumanInputDeps): void {
   // surface-relative look so the two don't cross-contaminate.
   let floatYaw = 0;
   let floatPitch = 0;
-  // Invert vertical mouse-look (mouse up -> look down). Persisted in
-  // localStorage; toggle live with the I key. Defaults to inverted.
-  let invertY = (localStorage.getItem("fp_invertY") ?? "1") === "1";
 
   // Tracks whether human keys were driving the walk last step, so we only emit a
   // single walkInput(0,0) on key release. Without this guard the per-step hook
@@ -103,18 +99,21 @@ export function createHumanInput(deps: HumanInputDeps): void {
   // user clicks to (re)capture the mouse.
   const canvas = scene.getEngine().getRenderingCanvas();
 
-  // Mouse-look (booted) and mouse-draw (floating) both want the pointer, so we
-  // separate them by state to avoid the two fighting:
-  //   - BOOTED + fp   -> pointer-lock look; drawing OFF.
-  //   - FLOATING + fp -> drawing ON (left-drag); no pointer lock.
-  const lookActive = (): boolean =>
-    player.isBooted() && camera.getMode() === "fp";
+  // First-person ALWAYS captures the pointer (floating or booted) so the cursor
+  // can't wander off the window while you mouse-look. Only the demo orbit camera
+  // leaves the pointer free.
+  const lookActive = (): boolean => camera.getMode() === "fp";
 
   const syncDrawing = (): void => {
-    // Mouse-draw only when FLOATING in first person; off while booted (pointer is
-    // captured for look) and off in demo (so it can't fight the orbit camera or
-    // leak into the deterministic demo-mode automation path).
-    drawing.setInputEnabled(camera.getMode() === "fp" && !player.isBooted());
+    // Legacy free-hand mouse-draw only when FLOATING in first person AND the
+    // pointer is NOT captured (Esc to release capture first). While captured the
+    // pointer drives look/crosshair-paint, not drawing. Off while booted and off
+    // in demo (so it can't fight the orbit camera or the deterministic path).
+    drawing.setInputEnabled(
+      camera.getMode() === "fp" &&
+        !player.isBooted() &&
+        document.pointerLockElement !== canvas,
+    );
   };
 
   // Request pointer-lock so "move mouse to look" works. Must be driven by a user
@@ -131,9 +130,18 @@ export function createHumanInput(deps: HumanInputDeps): void {
     "z-index:20;display:none";
   document.body.appendChild(hint);
 
+  // Aiming crosshair (screen center) — this is where F paints. Shown in fp.
+  const crosshair = document.createElement("div");
+  crosshair.style.cssText =
+    "position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;" +
+    "border-radius:50%;background:rgba(207,232,255,0.9);" +
+    "box-shadow:0 0 0 1px rgba(0,0,0,0.55);pointer-events:none;z-index:20;display:none";
+  document.body.appendChild(crosshair);
+
   const updateHint = (): void => {
     hint.style.display =
       lookActive() && document.pointerLockElement !== canvas ? "block" : "none";
+    crosshair.style.display = camera.getMode() === "fp" ? "block" : "none";
   };
 
   const lockPointer = (): void => {
@@ -227,12 +235,8 @@ export function createHumanInput(deps: HumanInputDeps): void {
         case "KeyR":
           reset();
           break;
-        case "KeyI":
-          invertY = !invertY;
-          localStorage.setItem("fp_invertY", invertY ? "1" : "0");
-          break;
         // Brush palette: pick the physical property to paint (1 cold, 2
-        // conductive, 3 magnetic), then F paints the surface under the cursor.
+        // conductive, 3 magnetic), then F paints the surface at the crosshair.
         case "Digit1":
           deps.selectColor(PAINT_PALETTE[0]);
           break;
@@ -243,7 +247,7 @@ export function createHumanInput(deps: HumanInputDeps): void {
           deps.selectColor(PAINT_PALETTE[2]);
           break;
         case "KeyF":
-          paintUnderCursor();
+          paintAtCrosshair();
           break;
         case "KeyP":
           deps.cycleScenario(); // switch rooms (frostgap <-> crosswire)
@@ -258,13 +262,16 @@ export function createHumanInput(deps: HumanInputDeps): void {
   // Don't keep "holding" thrust/walk if focus is lost.
   window.addEventListener("blur", () => pressed.clear());
 
-  // Click the canvas to (re)capture the mouse for look while booted — e.g. after
-  // the user hit Esc to release it. No-op when floating (left-drag draws instead).
-  // 'click' is the most reliable pointer-lock gesture; pointerdown covers the
-  // press too. Keep the hint synced to the actual lock state.
+  // Click the view to (re)capture the mouse for look (floating OR booted) — e.g.
+  // after Esc released it. 'click' is the most reliable pointer-lock gesture;
+  // pointerdown covers the press too. Keep the hint/crosshair + the free-draw
+  // gate synced to the actual lock state.
   canvas?.addEventListener("click", () => lockPointer());
   canvas?.addEventListener("pointerdown", () => lockPointer());
-  document.addEventListener("pointerlockchange", updateHint);
+  document.addEventListener("pointerlockchange", () => {
+    updateHint();
+    syncDrawing();
+  });
 
   // Mouse-look in first-person, both booted (surface-relative) and floating
   // (world-frame). Uses relative movementX/movementY, which the browser reports
@@ -275,11 +282,14 @@ export function createHumanInput(deps: HumanInputDeps): void {
     const dx = e.movementX || 0;
     const dy = e.movementY || 0;
     if (dx === 0 && dy === 0) return;
-    const pitchSign = invertY ? 1 : -1; // invertY: mouse up -> look down
     const clamp = config.pitchClamp;
+    // Mouse-up ALWAYS looks up. movementY is negative on mouse-up, and the two
+    // modes use OPPOSITE pitch conventions (booted: +pitch tilts DOWN via
+    // rotateAbout; floating: +pitch is forward.y = sin(pitch), i.e. UP), so each
+    // branch needs its own sign to land on the same "up == up" feel.
     if (player.isBooted()) {
       lookYaw += dx * LOOK_SENS;
-      lookPitch += pitchSign * dy * LOOK_SENS;
+      lookPitch += dy * LOOK_SENS; // dy<0 (up) -> pitch<0 -> booted looks up
       if (lookPitch > clamp) lookPitch = clamp;
       else if (lookPitch < -clamp) lookPitch = -clamp;
       player.setFacing(lookYaw, lookPitch);
@@ -288,7 +298,7 @@ export function createHumanInput(deps: HumanInputDeps): void {
       // left-drag draws a stroke instead of swinging the view.
       if (e.buttons !== 0) return;
       floatYaw += dx * LOOK_SENS;
-      floatPitch += pitchSign * dy * LOOK_SENS;
+      floatPitch -= dy * LOOK_SENS; // dy<0 (up) -> pitch>0 -> floating looks up
       if (floatPitch > clamp) floatPitch = clamp;
       else if (floatPitch < -clamp) floatPitch = -clamp;
       player.setFacing(floatYaw, floatPitch);
