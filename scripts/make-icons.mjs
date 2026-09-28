@@ -49,6 +49,17 @@ const OUT = [
   ["public/icon-512.png", 512],
   ["public/icon-192.png", 192],
   ["public/apple-touch-icon.png", 180],
+  // iOS (Capacitor) App Store icon: single 1024 universal slot, opaque RGB.
+  ["ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png", 1024],
+];
+
+// iOS launch screen: dark field with the icon glyph centered (the storyboard
+// aspect-fills this 2732x2732 image, so keep the art inside the middle third).
+const SPLASH_SIZE = 2732;
+const SPLASH_OUT = [
+  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png",
+  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-1.png",
+  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-2.png",
 ];
 
 const browser = await chromium.launch({ headless: true });
@@ -62,6 +73,19 @@ try {
     await page.close();
     console.log(`wrote ${file} (${size}x${size})`);
   }
+  const page = await browser.newPage({
+    viewport: { width: SPLASH_SIZE, height: SPLASH_SIZE },
+    deviceScaleFactor: 1,
+  });
+  await page.setContent(
+    `<html><body style="margin:0;background:#05080f;display:flex;align-items:center;justify-content:center;height:100vh">` +
+      `<div style="width:560px;height:560px;border-radius:124px;overflow:hidden">${SVG}</div></body></html>`,
+  );
+  for (const file of SPLASH_OUT) {
+    await page.screenshot({ path: path.join(ROOT, file) });
+    console.log(`wrote ${file} (${SPLASH_SIZE}x${SPLASH_SIZE})`);
+  }
+  await page.close();
 } finally {
   await browser.close();
 }

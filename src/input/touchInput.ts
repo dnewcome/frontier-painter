@@ -13,6 +13,8 @@
 // Pure UI + input: it perturbs the sim only through HumanControls (fixed-step
 // intent + one-shot verbs), never on the scripted window.game path.
 import type { Scene } from "@babylonjs/core/scene";
+import { Capacitor } from "@capacitor/core";
+import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
 import type { HumanControls, PaintResult } from "./humanInput";
 import { PAINT_PALETTE, type GameState, type PaintProperty } from "../types";
 
@@ -115,10 +117,11 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 /** Fire on the earliest touch (pointerdown) for snappy game buttons. */
-function onPress(b: HTMLElement, fn: () => void): void {
+function onPress(b: HTMLElement, fn: () => void, tick?: () => void): void {
   b.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
+    tick?.();
     fn();
   });
 }
@@ -175,11 +178,26 @@ export function createTouchInput(deps: TouchInputDeps): void {
     window.clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => toast.classList.remove("show"), 1500);
   };
-  const buzz = (pattern: number | number[]): void => {
-    // Android vibrates; iOS Safari ignores this (native haptics come with the
-    // Capacitor build).
+  // Native iOS build: real Taptic Engine feedback via Capacitor Haptics. Web:
+  // navigator.vibrate (Android only; iOS Safari has no vibration API).
+  const NATIVE = Capacitor.isNativePlatform();
+  type Feel = "success" | "error" | "warning" | "tick";
+  const feel = (kind: Feel): void => {
     try {
-      navigator.vibrate?.(pattern);
+      if (NATIVE) {
+        if (kind === "tick") void Haptics.impact({ style: ImpactStyle.Light });
+        else
+          void Haptics.notification({
+            type:
+              kind === "success"
+                ? NotificationType.Success
+                : kind === "error"
+                  ? NotificationType.Error
+                  : NotificationType.Warning,
+          });
+      } else {
+        navigator.vibrate?.(kind === "success" ? 18 : kind === "tick" ? 6 : [10, 40, 10]);
+      }
     } catch {
       /* unsupported */
     }
@@ -195,15 +213,15 @@ export function createTouchInput(deps: TouchInputDeps): void {
     switch (r.outcome) {
       case "repaired":
         say(`Repaired: ${labelOf(r.id)}`, "good");
-        buzz(18);
+        feel("success");
         break;
       case "wrong":
         say("Rejected — wrong property", "bad");
-        buzz([10, 40, 10]);
+        feel("error");
         break;
       case "locked":
         say("Locked — something's in the way", "warn");
-        buzz([10, 40, 10]);
+        feel("warning");
         break;
       case "far":
         say("Too far — get closer", "warn");
@@ -311,7 +329,7 @@ export function createTouchInput(deps: TouchInputDeps): void {
     dot.style.background = SWATCH[c].hex;
     dot.style.boxShadow = `0 0 12px ${SWATCH[c].hex}`;
     el("span", "lbl", b, SWATCH[c].label);
-    onPress(b, () => deps.selectColor(c));
+    onPress(b, () => deps.selectColor(c), () => feel("tick"));
     swatches.set(c, b);
   }
 
@@ -321,8 +339,8 @@ export function createTouchInput(deps: TouchInputDeps): void {
   bootsBtn.dataset.role = "boots";
   const actionBtn = el("button", "t-btn big", actions, "GRAB");
   actionBtn.dataset.role = "action";
-  onPress(bootsBtn, () => controls.toggleBoots());
-  onPress(actionBtn, () => controls.action());
+  onPress(bootsBtn, () => controls.toggleBoots(), () => feel("tick"));
+  onPress(actionBtn, () => controls.action(), () => feel("tick"));
 
   // ---- menu ----------------------------------------------------------------
   const menuBtn = el("button", "t-menu-btn", root, "☰");
@@ -332,12 +350,9 @@ export function createTouchInput(deps: TouchInputDeps): void {
   const mReset = el("button", "", menu, "↺  Restart room");
   const mCam = el("button", "", menu, "🎥  Camera: first-person");
   const mGyro = el("button", "", menu, "🧭  Gyro look: off");
-  el(
-    "div",
-    "tip",
-    menu,
-    "Tip: Share → Add to Home Screen to play fullscreen.",
-  );
+  if (!NATIVE) {
+    el("div", "tip", menu, "Tip: Share → Add to Home Screen to play fullscreen.");
+  }
   // Menu items use `click` (fires after touchend, which carries the user
   // activation iOS requires for the motion-permission prompt).
   menuBtn.addEventListener("click", () => menu.classList.toggle("open"));

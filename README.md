@@ -83,6 +83,23 @@ npm run typecheck  # tsc, no emit
 npm run test:e2e   # Playwright e2e
 ```
 
+## iOS (TestFlight)
+
+A native iPhone/iPad build wraps the same Vite bundle in a Capacitor shell
+(`ios/`, Swift Package Manager — no CocoaPods, so it's generated and synced from
+Linux). Native extras: Taptic haptics on paint, landscape-only, fullscreen.
+
+```bash
+npm run build:ios                      # web build + cap sync ios
+git tag ios-v0.1.0 && git push origin ios-v0.1.0   # CI builds + uploads to TestFlight
+```
+
+`.github/workflows/ios.yml` runs on a `macos-26` runner (no Mac needed): archive
+with the team's persistent Distribution + Development identities (repo secrets),
+export, upload. Build number = Unix epoch; marketing version = the tag. Bundle ID
+`com.dnuke.frontierpainter`. App icon + launch screen come from
+`npm run icons`.
+
 ## Running playthrough demos
 
 The playthrough harness produces the **official demo** of a slice: it builds the

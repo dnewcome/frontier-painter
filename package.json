@@ -14,12 +14,17 @@
     "playthrough:paint": "CAPTURE_FILE=capture-paint.mjs RUN_LABEL=frostgap node playthrough/run.mjs",
     "playthrough:crosswire": "CAPTURE_FILE=capture-crosswire.mjs RUN_LABEL=crosswire node playthrough/run.mjs",
     "playthrough:mobile": "CAPTURE_FILE=capture-mobile.mjs RUN_LABEL=mobile node playthrough/run.mjs",
-    "icons": "node scripts/make-icons.mjs"
+    "icons": "node scripts/make-icons.mjs",
+    "build:ios": "npm run build && cap sync ios"
   },
   "dependencies": {
-    "@babylonjs/core": "^7.0.0"
+    "@babylonjs/core": "^7.0.0",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@playwright/test": "1.58.0",
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0",
