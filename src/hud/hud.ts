@@ -19,17 +19,31 @@ const GOAL_CENTER: readonly [number, number, number] = [0, 1, 8];
 // Distance (m) from goal center that latches the win (matches SimConfig.goalRadius).
 const GOAL_RADIUS = 1.0;
 
+export interface HudOptions {
+  /** Phone layout: hide the debug readout and show a compact objective panel
+   *  that describes each broken surface by its SYMPTOM (not the answer). */
+  compact?: boolean;
+}
+
 class HudImpl implements Hud {
   private readonly root: HTMLElement;
   private readonly info: HTMLDivElement;
   private readonly banner: HTMLDivElement;
+  private readonly objective: HTMLDivElement | null = null;
 
   // Render caches: skip DOM writes when nothing visible changed.
   private lastText = "";
+  private lastObjective = "";
   private lastWon: boolean | null = null;
 
-  constructor(root: HTMLElement) {
+  constructor(root: HTMLElement, opts: HudOptions = {}) {
     this.root = root;
+    if (opts.compact) {
+      root.classList.add("compact");
+      this.objective = document.createElement("div");
+      this.objective.className = "hud-objective";
+      root.appendChild(this.objective);
+    }
 
     this.info = document.createElement("div");
     this.info.className = "hud-info";
@@ -47,6 +61,7 @@ class HudImpl implements Hud {
   }
 
   update(state: GameState): void {
+    if (this.objective) this.renderObjective(state);
     const p = state.playerPos;
     const distGoal = distance(p, GOAL_CENTER);
     const speed = magnitude(state.velocity);
@@ -115,6 +130,38 @@ class HudImpl implements Hud {
     this.setWin(state.goalReached);
   }
 
+  /** Compact objective: surface name + symptom + status. Never shows the
+   *  required property — diagnosing it is the puzzle. */
+  private renderObjective(state: GameState): void {
+    const obj = this.objective;
+    if (!obj) return;
+    let html = "";
+    if (state.paintSurfaces.length > 0) {
+      const title = state.goalReached
+        ? "CONSOLE ONLINE"
+        : state.paintComplete
+          ? "CONSOLE POWERED — GET TO IT"
+          : "REPAIR THE SHIP";
+      html += `<div class="obj-title">${title}</div>`;
+      for (const s of state.paintSurfaces) {
+        const cls = s.satisfied ? "ok" : s.available ? "bad" : "lock";
+        const icon = s.satisfied ? "✓" : s.available ? "✗" : "🔒";
+        const detail = s.satisfied
+          ? "repaired"
+          : s.available
+            ? esc(s.symptom)
+            : "blocked by another surface";
+        html +=
+          `<div class="obj-row ${cls}"><span class="ic">${icon}</span>` +
+          `<b>${esc(s.label)}</b><span class="sym">${detail}</span></div>`;
+      }
+    }
+    if (html !== this.lastObjective) {
+      obj.innerHTML = html;
+      this.lastObjective = html;
+    }
+  }
+
   setWin(won: boolean): void {
     if (won === this.lastWon) return;
     this.lastWon = won;
@@ -128,6 +175,12 @@ class HudImpl implements Hud {
     this.banner.remove();
     this.root.classList.remove("won");
   }
+}
+
+function esc(t: string): string {
+  return t.replace(/[&<>"]/g, (c) =>
+    c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&quot;",
+  );
 }
 
 function fmtVec(v: readonly [number, number, number]): string {
@@ -149,6 +202,6 @@ function magnitude(v: readonly [number, number, number]): number {
 }
 
 /** `root` is the #hud overlay div from index.html. */
-export function createHud(root: HTMLElement): Hud {
-  return new HudImpl(root);
+export function createHud(root: HTMLElement, opts: HudOptions = {}): Hud {
+  return new HudImpl(root, opts);
 }

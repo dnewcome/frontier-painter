@@ -12,7 +12,9 @@
     "capture:video": "node scripts/capture.mjs",
     "playthrough": "node playthrough/run.mjs",
     "playthrough:paint": "CAPTURE_FILE=capture-paint.mjs RUN_LABEL=frostgap node playthrough/run.mjs",
-    "playthrough:crosswire": "CAPTURE_FILE=capture-crosswire.mjs RUN_LABEL=crosswire node playthrough/run.mjs"
+    "playthrough:crosswire": "CAPTURE_FILE=capture-crosswire.mjs RUN_LABEL=crosswire node playthrough/run.mjs",
+    "playthrough:mobile": "CAPTURE_FILE=capture-mobile.mjs RUN_LABEL=mobile node playthrough/run.mjs",
+    "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
     "@babylonjs/core": "^7.0.0"

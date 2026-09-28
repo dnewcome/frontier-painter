@@ -54,7 +54,11 @@ class GameEngineImpl implements GameEngine {
       stencil: true,
       antialias: true,
     });
-    this.engine.setHardwareScalingLevel(1);
+    // Render at device resolution for crisp Retina screens, capped at 2x: a 3x
+    // iPhone at full res is ~2.25x the fill cost for little visible gain. DPR 1
+    // (desktop / headless tests) stays exactly 1x, so captures are unchanged.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.engine.setHardwareScalingLevel(1 / dpr);
 
     this.scene = new Scene(this.engine);
     // Zero-g: built-in collider must not apply gravity.

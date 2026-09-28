@@ -101,6 +101,14 @@ export interface GameApi {
    * Deterministic: no pointer input, no time/RNG reads.
    */
   paint(id: string): boolean;
+
+  /**
+   * Project a world point to viewport CSS pixels for the ACTIVE camera (as of the
+   * last rendered frame), or null if it is behind the camera / off the view
+   * frustum depth range. Lets touch automation tap real on-screen targets
+   * (e.g. a paint surface's `anchor`). Read-only; never perturbs the sim.
+   */
+  projectToScreen(p: Vec3): [number, number] | null;
 }
 
 declare global {

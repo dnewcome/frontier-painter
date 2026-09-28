@@ -1,0 +1,98 @@
+// tests/controls.spec.ts
+// Desktop keyboard + mouse regression for the shared HumanControls layer:
+// B plants the boots, W walks, mouse-up looks up, and a held W pulls you along
+// a grabbed handhold. Real DOM input (no window.game movement calls).
+import { test, expect, type Page } from "@playwright/test";
+import type { GameState } from "../src/types";
+
+async function boot(page: Page): Promise<string[]> {
+  const errors: string[] = [];
+  page.on("console", (m) => {
+    if (m.type() === "error") errors.push(m.text());
+  });
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.goto("/");
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, {
+    timeout: 30_000,
+  });
+  return errors;
+}
+
+const state = (page: Page): Promise<GameState> =>
+  page.evaluate(() => window.game.getState());
+
+test("desktop: B plants boots and W walks", async ({ page }) => {
+  const errors = await boot(page);
+  // No touch UI on desktop.
+  expect(await page.locator("#touch-ui").count()).toBe(0);
+  await page.locator("#renderCanvas").click({ position: { x: 640, y: 360 } });
+  await page.keyboard.press("KeyB");
+  await expect.poll(async () => (await state(page)).booted).toBe(true);
+  const z0 = (await state(page)).playerPos[2];
+  await page.keyboard.down("KeyW");
+  await page.waitForTimeout(900);
+  await page.keyboard.up("KeyW");
+  expect((await state(page)).playerPos[2] - z0).toBeGreaterThan(1);
+  expect(errors).toEqual([]);
+});
+
+test("desktop: mouse up looks up (floating)", async ({ page }) => {
+  const errors = await boot(page);
+  const fire = (my: number) =>
+    page.evaluate(
+      (dy) =>
+        window.dispatchEvent(
+          new MouseEvent("mousemove", { movementX: 0, movementY: dy, buttons: 0 }),
+        ),
+      my,
+    );
+  const y0 = (await state(page)).facing[1];
+  await fire(-40);
+  const y1 = (await state(page)).facing[1];
+  expect(y1).toBeGreaterThan(y0 + 0.05);
+  await fire(80);
+  expect((await state(page)).facing[1]).toBeLessThan(y1 - 0.05);
+  expect(errors).toEqual([]);
+});
+
+test("desktop: holding W while grabbing pulls you along the handhold", async ({ page }) => {
+  const errors = await boot(page);
+  // Repair the rail so it freezes into a handhold, then float into grab range.
+  await page.evaluate(() => {
+    const g = window.game;
+    g.selectColor("cold");
+    g.paint("access-rail");
+    for (let i = 0; i < 800; i++) {
+      g.moveTo([0, 1.2, -6]);
+      const p = g.step(1 / 60, 1).playerPos;
+      if (Math.hypot(p[0], p[1] - 1.2, p[2] + 6) <= 0.8) break;
+    }
+    g.moveTo(g.getState().playerPos);
+    g.step(1 / 60, 1);
+  });
+  await page.keyboard.press("KeyG"); // grab
+  await expect.poll(async () => (await state(page)).grabbing).toBe(true);
+  const t0 = (await state(page)).grabT ?? 0;
+  await page.keyboard.down("KeyW");
+  await page.waitForTimeout(900);
+  await page.keyboard.up("KeyW");
+  expect(((await state(page)).grabT ?? 0) - t0).toBeGreaterThan(0.05);
+  expect(errors).toEqual([]);
+});
+
+test("desktop: nudging the mouse after planting boots doesn't snap the view", async ({ page }) => {
+  const errors = await boot(page);
+  await page.keyboard.press("KeyB"); // plant facing the spawn heading (+Z)
+  await expect.poll(async () => (await state(page)).booted).toBe(true);
+  const before = (await state(page)).facing;
+  expect(before[2]).toBeGreaterThan(0.99);
+  // A small nudge must rotate a little from +Z — not jump to the surface's
+  // reference tangent (+X), which the old stale accumulator did.
+  await page.evaluate(() =>
+    window.dispatchEvent(new MouseEvent("mousemove", { movementX: 12, movementY: 0, buttons: 0 })),
+  );
+  const after = (await state(page)).facing;
+  expect(after[2]).toBeGreaterThan(0.95);
+  expect(Math.abs(after[0])).toBeLessThan(0.2);
+  expect(errors).toEqual([]);
+});

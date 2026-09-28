@@ -223,7 +223,9 @@ export function makeLabelTexture(
     c.fillText(line1, W / 2, H / 2);
   }
 
-  tex.update(false);
+  // invertY=true: canvas row 0 is the TOP but GL's v=0 is the BOTTOM. The other
+  // (symmetric, pattern) textures don't care; text renders upside-down without it.
+  tex.update(true);
   return tex;
 }
 

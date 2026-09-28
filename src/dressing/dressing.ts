@@ -138,7 +138,10 @@ export function createDressing(
     const p = MeshBuilder.CreatePlane(name, { width: w, height: h }, scene);
     p.material = mat;
     p.position.set(x, y, z);
-    p.rotation.y = rotY;
+    // A Babylon plane's front face points -Z. Callers pass the rotation that
+    // aligns the plane with its wall; +PI turns the FRONT toward the room so the
+    // stencil reads correctly (it was showing its back face = mirrored text).
+    p.rotation.y = rotY + Math.PI;
     tag(p);
   };
 

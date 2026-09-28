@@ -67,6 +67,11 @@ interface Target {
   id: string;
   label: string;
   required: PaintProperty;
+  /** Diagnostic hint shown instead of the answer (implies `required`). */
+  symptom: string;
+  /** Fixed on-surface point for tap targeting, or null to use the live mesh
+   *  bounding-box center (fine for flat panels; the arcing rail needs a vertex). */
+  anchor: Vec3 | null;
   painted: PaintProperty | null;
   /** Another target id that must be repaired before this one accepts paint. */
   prerequisite: string | null;
@@ -142,6 +147,8 @@ class PaintFieldImpl implements PaintField {
       id: "access-rail",
       label: "Access rail",
       required: "cold",
+      symptom: "Overheated — too hot to grip",
+      anchor: path[1], // a centerline vertex: guaranteed inside the tube
       mesh: sheath,
       mat,
       onFix: () => {
@@ -176,6 +183,7 @@ class PaintFieldImpl implements PaintField {
       id: "power-conduit",
       label: "Power conduit",
       required: "conductive",
+      symptom: "Dead circuit — no current",
       mesh: panel,
       mat,
       extras: [door],
@@ -225,6 +233,7 @@ class PaintFieldImpl implements PaintField {
       id: "coolant-shroud",
       label: "Coolant shroud",
       required: "cold",
+      symptom: "Seized — venting heat",
       mesh: shroud,
       mat: shroudMat,
       onFix: () => {
@@ -241,6 +250,7 @@ class PaintFieldImpl implements PaintField {
       id: "power-core",
       label: "Power core",
       required: "conductive",
+      symptom: "Isolated — won't carry charge",
       prerequisite: "coolant-shroud",
       hiddenUntilPrereq: true,
       mesh: core,
@@ -278,6 +288,8 @@ class PaintFieldImpl implements PaintField {
     id: string;
     label: string;
     required: PaintProperty;
+    symptom: string;
+    anchor?: Vec3;
     mesh: Mesh;
     mat: StandardMaterial;
     extras?: Mesh[];
@@ -290,6 +302,8 @@ class PaintFieldImpl implements PaintField {
       id: spec.id,
       label: spec.label,
       required: spec.required,
+      symptom: spec.symptom,
+      anchor: spec.anchor ?? null,
       painted: null,
       prerequisite: spec.prerequisite ?? null,
       hiddenUntilPrereq: spec.hiddenUntilPrereq ?? false,
@@ -395,7 +409,18 @@ class PaintFieldImpl implements PaintField {
         painted: t.painted,
         satisfied: t.painted === t.required,
         available: this.accessible(t),
+        symptom: t.symptom,
+        anchor: this.anchorOf(t),
       }));
+  }
+
+  /** On-surface world point: the explicit anchor, else the live bbox center
+   *  (recomputed so a moved mesh — e.g. the retracting shroud — stays correct). */
+  private anchorOf(t: Target): Vec3 {
+    if (t.anchor) return [t.anchor[0], t.anchor[1], t.anchor[2]];
+    t.mesh.computeWorldMatrix(true);
+    const c = t.mesh.getBoundingInfo().boundingBox.centerWorld;
+    return [c.x, c.y, c.z];
   }
 
   pickables(): Mesh[] {

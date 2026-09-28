@@ -42,6 +42,11 @@ export interface PaintSurfaceState {
    *  ("right property, right place, right ORDER"). Always true when no
    *  prerequisite. */
   available: boolean;
+  /** Diagnostic hint shown to the player instead of the answer, e.g.
+   *  "Overheated — too hot to grip" (implies `cold`). The player diagnoses. */
+  symptom: string;
+  /** A world point ON the surface (for tap targeting / touch automation). */
+  anchor: Vec3;
 }
 
 /** A frozen handhold tube created from a drawn stroke. */

@@ -1,8 +1,10 @@
 import { defineConfig } from "vite";
 
-// Vite config for slice 1. No special plugins needed for @babylonjs/core
-// (no WASM in slice 1). optimizeDeps.include avoids dev pre-bundle churn.
+// VITE_BASE lets the same build serve from a sub-path — e.g. GitHub Pages
+// project sites live at /<repo>/ (set in .github/workflows/pages.yml). Local dev,
+// preview, tests, and playthroughs keep the root base.
 export default defineConfig({
+  base: process.env.VITE_BASE || "/",
   server: {
     port: 5173,
     strictPort: true,

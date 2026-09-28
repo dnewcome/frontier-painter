@@ -1,24 +1,24 @@
 // src/input/humanInput.ts
 // Wires real human controls for headed play WITHOUT touching the deterministic
-// fixed-step contract that automation relies on:
+// fixed-step contract that automation relies on. Returns a HumanControls handle
+// so the on-screen touch UI (touchInput.ts) drives the SAME look / move / boots /
+// paint logic as the keyboard + mouse:
 //   - FLOATING (boots off):
-//       WASD = camera-plane thrust, E/Q = up/down (per-fixed-step impulses).
-//       G or Space = toggle grab / release on the nearest handhold.
+//       WASD / stick = camera-relative thrust, E/Q = up/down.
+//       While GRABBING a handhold: forward/back = pull hand-over-hand along it.
+//       G or Space / action button = grab / release the nearest handhold.
 //   - BOOTED (boots on, magnetic walk):
-//       WASD = tangential walk intent (walkInput each fixed step).
-//       Mouse move (fp + pointer-lock) = look: yaw + clamped pitch via setFacing.
-//       Space = pushOff (jump off the surface). G still toggles grab.
-//   - B: toggle magnetic boots; engaging boots also switches to first-person.
-//   - C: toggle camera between 'demo' and 'fp'. Live mouse-draw is enabled only
-//        in 'fp'.
-//   - R: reset the slice.
-//   - Left-drag (fp only): draw a handhold stroke (handled by the drawing module).
+//       WASD / stick = tangential walk intent. Space / action = push off.
+//   - Mouse move or right-thumb drag = look (mouse/finger up -> look up).
+//   - B: boots · C: camera · R: reset · P: next room · 1/2/3: brush property ·
+//     F: paint at the crosshair (desktop) / tap a surface (touch).
+//   - Left-drag (desktop, floating, pointer released): legacy free-hand draw.
 //
 // Determinism: this module reads live DOM input, but it ONLY perturbs the sim
-// through per-fixed-step intent (player.applyImpulse / player.walkInput) and
-// one-shot verbs (pushOff / setBooted / setFacing). The canonical test/video
-// path drives window.game.step() and never dispatches DOM key/pointer events, so
-// the simulation there is untouched by this module.
+// through per-fixed-step intent (applyImpulse / walkInput / pullAlong) and
+// one-shot verbs (pushOff / setBooted / setFacing / grab). The canonical
+// test/video path drives window.game.step() and never dispatches DOM input, so
+// with no keys held and the stick centered this hook is a no-op there.
 import type { Scene } from "@babylonjs/core/scene";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Axis } from "@babylonjs/core/Maths/math.axis";
@@ -28,6 +28,7 @@ import type { PaintField } from "../paint/paintField";
 import type { CameraRig } from "../core/camera";
 import type { GameEngine } from "../core/engine";
 import { PAINT_PALETTE, type CameraMode, type PaintProperty, type SimConfig } from "../types";
+import { isTouchDevice } from "./device";
 
 export interface HumanInputDeps {
   scene: Scene;
@@ -42,85 +43,86 @@ export interface HumanInputDeps {
   selectColor: (color: PaintProperty) => void;
   /** Paint the broken surface `id` with the selected color; true iff repaired. */
   paint: (id: string) => boolean;
-  /** Load the next playable paint scenario (dev/demo affordance). */
+  /** Load the next playable paint scenario. */
   cycleScenario: () => void;
 }
 
-/** Thrust acceleration (m/s^2) applied while a movement key is held (floating).
- *  Gentle, RCS-style: you mostly drift; WASD just nudges relative to the view. */
+/** What happened when the player tried to paint at a screen point. */
+export type PaintOutcome = "repaired" | "wrong" | "locked" | "far" | "miss";
+export interface PaintResult {
+  outcome: PaintOutcome;
+  /** The surface the ray hit (null on a miss). */
+  id: string | null;
+}
+
+/** Shared control surface driven by keyboard/mouse AND the touch UI. */
+export interface HumanControls {
+  /** Look delta in radians: yaw to the RIGHT and pitch UP (positive = up). */
+  lookRadians(yawRight: number, pitchUp: number): void;
+  /** Analog move intent from a virtual stick, each axis in [-1, 1]:
+   *  x = strafe right, y = forward. (0,0) releases it. */
+  setStick(x: number, y: number): void;
+  toggleBoots(): void;
+  /** Context action: booted -> push off; floating -> grab / release. */
+  action(): void;
+  toggleCamera(): void;
+  /** Paint the surface under a viewport point (CSS px) with the selected color. */
+  paintAtScreen(x: number, y: number): PaintResult;
+  isBooted(): boolean;
+  isGrabbing(): boolean;
+}
+
+/** Thrust acceleration (m/s^2) at full input while floating. Gentle, RCS-style:
+ *  you mostly drift; input just nudges relative to the view. */
 const THRUST_ACCEL = 7;
-/** Mouse-look sensitivity (rad per pixel of pointer movement) while booted. */
+/** Mouse-look sensitivity (rad per pixel of pointer movement). */
 const LOOK_SENS = 0.0025;
 
-export function createHumanInput(deps: HumanInputDeps): void {
+function clamp1(v: number): number {
+  return v > 1 ? 1 : v < -1 ? -1 : v;
+}
+
+export function createHumanInput(deps: HumanInputDeps): HumanControls {
   const { scene, engine, player, drawing, paintField, camera, config, reset } =
     deps;
+  const touch = isTouchDevice();
   const pressed = new Set<string>();
 
-  // Paint the broken surface the player is AIMING at (screen-center crosshair =
-  // camera forward), then press F. Casting from the camera forward ray works
-  // whether or not the pointer is locked, and matches the visible crosshair. The
-  // ray is length-limited to paintReach so you can't repair the whole ship.
-  // Deterministic automation never uses this path — the scripted playthrough
-  // calls window.game.paint(id) directly.
-  const paintAtCrosshair = (): void => {
-    const cam = scene.activeCamera;
-    if (!cam) return;
-    const ray = cam.getForwardRay(config.paintReach);
-    const pick = scene.pickWithRay(ray, (m) => paintField.idForMesh(m) !== null);
-    if (!pick?.hit || !pick.pickedMesh) return;
-    const id = paintField.idForMesh(pick.pickedMesh);
-    if (id) deps.paint(id);
-  };
+  // Analog stick intent (touch). Combined with keyboard axes each fixed step.
+  let stickX = 0;
+  let stickY = 0;
 
   // Reusable scratch so the per-step hook allocates nothing.
   const dir = new Vector3();
   const tmp = new Vector3();
 
-  // Booted mouse-look accumulators. setFacing is the single authority for the
-  // look orientation while booted (yaw about the surface normal + clamped
-  // pitch), so it stays internally consistent with no double-applied yaw. Reset
-  // when boots engage; the player module rotates facing across surface
-  // transitions independently of these (cosmetic only, headed play).
-  let lookYaw = 0;
-  let lookPitch = 0;
-  // Floating look accumulators (world-frame yaw/pitch). Separate from the booted
-  // surface-relative look so the two don't cross-contaminate.
-  let floatYaw = 0;
-  let floatPitch = 0;
-
-  // Tracks whether human keys were driving the walk last step, so we only emit a
-  // single walkInput(0,0) on key release. Without this guard the per-step hook
-  // would call walkInput(0,0) every idle step and clobber the deterministic
-  // automation path's window.game.walk() intent.
+  // Only emit a single walkInput(0,0) on release, so an idle hook never clobbers
+  // the deterministic automation path's window.game.walk() intent.
   let wasWalking = false;
 
-  // The render canvas: target for pointer-lock (mouse-look) and the surface the
-  // user clicks to (re)capture the mouse.
   const canvas = scene.getEngine().getRenderingCanvas();
+  // iOS Safari has NO Pointer Lock API: calling requestPointerLock there throws.
+  const canLock =
+    !touch && !!canvas && typeof canvas.requestPointerLock === "function";
+  const isLocked = (): boolean =>
+    !!canvas && document.pointerLockElement === canvas;
+  const exitLock = (): void => {
+    if (isLocked()) document.exitPointerLock?.();
+  };
 
-  // First-person ALWAYS captures the pointer (floating or booted) so the cursor
-  // can't wander off the window while you mouse-look. Only the demo orbit camera
-  // leaves the pointer free.
-  const lookActive = (): boolean => camera.getMode() === "fp";
+  // Desktop first-person captures the pointer (floating OR booted) so the cursor
+  // can't leave the window. Touch devices never lock.
+  const lookActive = (): boolean => canLock && camera.getMode() === "fp";
 
   const syncDrawing = (): void => {
-    // Legacy free-hand mouse-draw only when FLOATING in first person AND the
-    // pointer is NOT captured (Esc to release capture first). While captured the
-    // pointer drives look/crosshair-paint, not drawing. Off while booted and off
-    // in demo (so it can't fight the orbit camera or the deterministic path).
+    // Legacy free-hand draw: desktop only, floating in fp, pointer NOT captured.
+    // Never on touch (every finger would start a stroke).
     drawing.setInputEnabled(
-      camera.getMode() === "fp" &&
-        !player.isBooted() &&
-        document.pointerLockElement !== canvas,
+      !touch && camera.getMode() === "fp" && !player.isBooted() && !isLocked(),
     );
   };
 
-  // Request pointer-lock so "move mouse to look" works. Must be driven by a user
-  // gesture (a click, or the B keydown that engages boots) — browsers reject it
-  // otherwise. Only meaningful while booted + first-person.
-  // On-screen affordance so capture is discoverable: pointer-lock can only be
-  // requested from a user gesture (a click), so we prompt for one while booted.
+  // ---- desktop affordances: capture hint + crosshair (hidden on touch) ------
   const hint = document.createElement("div");
   hint.textContent = "🖱  Click the view to capture the mouse  ·  Esc to release";
   hint.style.cssText =
@@ -130,7 +132,7 @@ export function createHumanInput(deps: HumanInputDeps): void {
     "z-index:20;display:none";
   document.body.appendChild(hint);
 
-  // Aiming crosshair (screen center) — this is where F paints. Shown in fp.
+  // Aiming crosshair (screen center) — where F paints on desktop.
   const crosshair = document.createElement("div");
   crosshair.style.cssText =
     "position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;" +
@@ -139,19 +141,17 @@ export function createHumanInput(deps: HumanInputDeps): void {
   document.body.appendChild(crosshair);
 
   const updateHint = (): void => {
-    hint.style.display =
-      lookActive() && document.pointerLockElement !== canvas ? "block" : "none";
-    crosshair.style.display = camera.getMode() === "fp" ? "block" : "none";
+    hint.style.display = lookActive() && !isLocked() ? "block" : "none";
+    crosshair.style.display = !touch && camera.getMode() === "fp" ? "block" : "none";
   };
 
   const lockPointer = (): void => {
-    if (lookActive() && document.pointerLockElement !== canvas) {
-      // Modern browsers return a Promise that can reject (e.g. lock cooldown
-      // right after Esc); swallow it so we never throw on a best-effort capture.
-      const req = canvas?.requestPointerLock();
-      if (req && typeof (req as { catch?: unknown }).catch === "function") {
-        (req as Promise<void>).catch(() => {});
-      }
+    if (!lookActive() || isLocked() || !canvas) return;
+    // Returns a Promise in modern browsers that can reject (e.g. the cooldown
+    // right after Esc); swallow it — capture is best-effort.
+    const req = canvas.requestPointerLock() as unknown;
+    if (req && typeof (req as Promise<void>).catch === "function") {
+      (req as Promise<void>).catch(() => {});
     }
   };
 
@@ -160,7 +160,7 @@ export function createHumanInput(deps: HumanInputDeps): void {
     camera.setMode(mode);
     syncDrawing();
     if (mode === "fp") lockPointer();
-    else if (document.pointerLockElement === canvas) document.exitPointerLock();
+    else exitLock();
     updateHint();
   };
 
@@ -173,58 +173,86 @@ export function createHumanInput(deps: HumanInputDeps): void {
     else player.grab();
   };
 
-  // After a push-off the player is suddenly floating with a new heading; sync the
-  // float-look accumulators to it so the next mouse move doesn't snap the view.
-  const syncFloatLookFromView = (): void => {
-    const f = player.getForward();
-    floatYaw = Math.atan2(f[0], f[2]);
-    floatPitch = Math.asin(Math.max(-1, Math.min(1, f[1])));
+  // Re-aim the (now floating) view at a captured look direction, so leaving the
+  // surface keeps what you were looking at instead of snapping to the launch
+  // velocity (thrust is view-relative, so a stable view matters).
+  const keepViewFloating = (f: [number, number, number]): void => {
+    player.setFacing(Math.atan2(f[0], f[2]), Math.asin(Math.max(-1, Math.min(1, f[1]))));
   };
 
   const toggleBoots = (): void => {
     if (!player.isBooted()) {
-      // Plant => first-person, fresh look accumulators, capture the mouse so the
-      // user can immediately look around (B keydown is a valid lock gesture).
       player.setBooted(true);
       setCamera("fp");
-      lookYaw = 0;
-      lookPitch = 0;
       lockPointer();
     } else {
-      // Release => float. Carry the current view into the float look so it does
-      // not jump, then release the captured cursor (floating uses a free cursor
-      // so left-drag can draw).
-      const f = player.getForward();
+      const f = player.getForward(); // the booted view, before detaching
       player.setBooted(false);
-      floatYaw = Math.atan2(f[0], f[2]);
-      floatPitch = Math.asin(Math.max(-1, Math.min(1, f[1])));
-      player.setFacing(floatYaw, floatPitch);
-      if (document.pointerLockElement === canvas) document.exitPointerLock();
+      keepViewFloating(f);
     }
     syncDrawing();
     updateHint();
   };
 
+  const action = (): void => {
+    if (player.isBooted()) {
+      const f = player.getForward();
+      player.pushOff(config.pushOffSpeed);
+      keepViewFloating(f);
+      syncDrawing();
+      updateHint();
+    } else {
+      toggleGrab();
+    }
+  };
+
+  // Mouse-up / finger-up ALWAYS looks up. The two modes use OPPOSITE pitch
+  // conventions (booted: +pitch tilts DOWN via rotateAbout(f, cross(n,f));
+  // floating: +pitch is forward.y = sin(pitch), i.e. UP), so each branch maps
+  // "pitch up" with its own sign.
+  // Deltas apply to the player's TRUE current look (getLook), so nothing can go
+  // stale when the game turns you (grab, pull, plant, crossing a surface edge).
+  const lookRadians = (yawRight: number, pitchUp: number): void => {
+    if (camera.getMode() !== "fp") return;
+    const clamp = config.pitchClamp;
+    const cur = player.getLook();
+    const raw = player.isBooted() ? cur.pitch - pitchUp : cur.pitch + pitchUp;
+    const pitch = raw > clamp ? clamp : raw < -clamp ? -clamp : raw;
+    player.setFacing(cur.yaw + yawRight, pitch);
+  };
+
+  // Paint whatever broken surface a ray through (x, y) hits first.
+  const paintAtCanvasPoint = (cx: number, cy: number): PaintResult => {
+    const pick = scene.pick(cx, cy, (m) => paintField.idForMesh(m) !== null);
+    if (!pick?.hit || !pick.pickedMesh) return { outcome: "miss", id: null };
+    const id = paintField.idForMesh(pick.pickedMesh);
+    if (!id) return { outcome: "miss", id: null };
+    if (pick.distance > config.paintReach) return { outcome: "far", id };
+    const before = paintField.states().find((s) => s.id === id);
+    if (deps.paint(id)) return { outcome: "repaired", id };
+    return { outcome: before && !before.available ? "locked" : "wrong", id };
+  };
+
+  const paintAtScreen = (x: number, y: number): PaintResult => {
+    const rect = canvas?.getBoundingClientRect();
+    return paintAtCanvasPoint(x - (rect?.left ?? 0), y - (rect?.top ?? 0));
+  };
+
+  // Desktop F: paint at the screen-center crosshair (camera forward).
+  const paintAtCrosshair = (): void => {
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    paintAtCanvasPoint(rect.width / 2, rect.height / 2);
+  };
+
   window.addEventListener("keydown", (e) => {
-    // Edge-triggered actions fire once per physical press.
     if (!e.repeat) {
       switch (e.code) {
         case "KeyB":
           toggleBoots();
           break;
         case "Space":
-          // Booted: push off the surface (-> floating). Floating: grab toggle.
-          if (player.isBooted()) {
-            player.pushOff(config.pushOffSpeed);
-            // Now floating: carry the launch heading into the float look, release
-            // the captured cursor, and re-enable mouse-draw.
-            syncFloatLookFromView();
-            if (document.pointerLockElement === canvas) document.exitPointerLock();
-            syncDrawing();
-            updateHint();
-          } else {
-            toggleGrab();
-          }
+          action();
           break;
         case "KeyG":
           toggleGrab();
@@ -235,8 +263,6 @@ export function createHumanInput(deps: HumanInputDeps): void {
         case "KeyR":
           reset();
           break;
-        // Brush palette: pick the physical property to paint (1 cold, 2
-        // conductive, 3 magnetic), then F paints the surface at the crosshair.
         case "Digit1":
           deps.selectColor(PAINT_PALETTE[0]);
           break;
@@ -250,7 +276,7 @@ export function createHumanInput(deps: HumanInputDeps): void {
           paintAtCrosshair();
           break;
         case "KeyP":
-          deps.cycleScenario(); // switch rooms (frostgap <-> crosswire)
+          deps.cycleScenario();
           break;
       }
     }
@@ -259,13 +285,14 @@ export function createHumanInput(deps: HumanInputDeps): void {
   window.addEventListener("keyup", (e) => {
     pressed.delete(e.code);
   });
-  // Don't keep "holding" thrust/walk if focus is lost.
-  window.addEventListener("blur", () => pressed.clear());
+  // Don't keep "holding" input if focus is lost.
+  window.addEventListener("blur", () => {
+    pressed.clear();
+    stickX = 0;
+    stickY = 0;
+  });
 
-  // Click the view to (re)capture the mouse for look (floating OR booted) — e.g.
-  // after Esc released it. 'click' is the most reliable pointer-lock gesture;
-  // pointerdown covers the press too. Keep the hint/crosshair + the free-draw
-  // gate synced to the actual lock state.
+  // Click the view to (re)capture the mouse (desktop) — e.g. after Esc.
   canvas?.addEventListener("click", () => lockPointer());
   canvas?.addEventListener("pointerdown", () => lockPointer());
   document.addEventListener("pointerlockchange", () => {
@@ -273,60 +300,45 @@ export function createHumanInput(deps: HumanInputDeps): void {
     syncDrawing();
   });
 
-  // Mouse-look in first-person, both booted (surface-relative) and floating
-  // (world-frame). Uses relative movementX/movementY, which the browser reports
-  // whether or not pointer-lock is engaged — so look works even when capture is
-  // unavailable (capture only adds endless-spin). Demo orbit camera is excluded.
+  // Desktop mouse-look via relative movement (works with or without capture).
+  // Chromium fires ONE bogus mousemove as pointer-lock engages whose movement is
+  // minus the cursor position (e.g. -640,-360 for a click at screen center) —
+  // without this guard every click-to-capture snapped the view. Drop the first
+  // move on each lock transition, and any single-event spike.
+  let lastMoveLocked = false;
   window.addEventListener("mousemove", (e) => {
-    if (camera.getMode() !== "fp") return;
+    if (touch || camera.getMode() !== "fp") return;
+    const locked = isLocked();
+    const lockEdge = locked !== lastMoveLocked;
+    lastMoveLocked = locked;
+    if (lockEdge) return;
     const dx = e.movementX || 0;
     const dy = e.movementY || 0;
     if (dx === 0 && dy === 0) return;
-    const clamp = config.pitchClamp;
-    // Mouse-up ALWAYS looks up. movementY is negative on mouse-up, and the two
-    // modes use OPPOSITE pitch conventions (booted: +pitch tilts DOWN via
-    // rotateAbout; floating: +pitch is forward.y = sin(pitch), i.e. UP), so each
-    // branch needs its own sign to land on the same "up == up" feel.
-    if (player.isBooted()) {
-      lookYaw += dx * LOOK_SENS;
-      lookPitch += dy * LOOK_SENS; // dy<0 (up) -> pitch<0 -> booted looks up
-      if (lookPitch > clamp) lookPitch = clamp;
-      else if (lookPitch < -clamp) lookPitch = -clamp;
-      player.setFacing(lookYaw, lookPitch);
-    } else {
-      // Floating: free-move look, but NOT while a mouse button is held — so a
-      // left-drag draws a stroke instead of swinging the view.
-      if (e.buttons !== 0) return;
-      floatYaw += dx * LOOK_SENS;
-      floatPitch -= dy * LOOK_SENS; // dy<0 (up) -> pitch>0 -> floating looks up
-      if (floatPitch > clamp) floatPitch = clamp;
-      else if (floatPitch < -clamp) floatPitch = -clamp;
-      player.setFacing(floatYaw, floatPitch);
-    }
+    if (Math.abs(dx) > 300 || Math.abs(dy) > 300) return;
+    // Floating + a held button = a free-hand draw stroke, not look.
+    if (!player.isBooted() && e.buttons !== 0) return;
+    lookRadians(dx * LOOK_SENS, -dy * LOOK_SENS); // mouse up (dy<0) -> look up
   });
 
   // Movement intent in the fixed-step pump so it integrates in lockstep with the
-  // rest of the sim. Branches on boots: walk intent while planted, free-float
-  // thrust otherwise. No-op (for thrust) while grabbing.
+  // sim. Keyboard axes + the analog stick are summed and clamped.
   engine.addFixedStepHook({
     onFixedStep: (dt: number) => {
+      let kf = 0;
+      let ks = 0;
+      let ku = 0;
+      if (pressed.has("KeyW")) kf += 1;
+      if (pressed.has("KeyS")) kf -= 1;
+      if (pressed.has("KeyD")) ks += 1;
+      if (pressed.has("KeyA")) ks -= 1;
+      if (pressed.has("KeyE")) ku += 1;
+      if (pressed.has("KeyQ")) ku -= 1;
+      const fwd = clamp1(kf + stickY);
+      const strafe = clamp1(ks + stickX);
+
       if (player.isBooted()) {
-        // Persistent tangential walk intent from held WASD. Only assert intent
-        // while a movement key is down; emit a single walkInput(0,0) on release.
-        // When no walk key is held we leave the player's walk intent untouched so
-        // the deterministic window.game.walk() automation path is never clobbered.
-        const moving =
-          pressed.has("KeyW") ||
-          pressed.has("KeyS") ||
-          pressed.has("KeyD") ||
-          pressed.has("KeyA");
-        if (moving) {
-          let fwd = 0;
-          let strafe = 0;
-          if (pressed.has("KeyW")) fwd += 1;
-          if (pressed.has("KeyS")) fwd -= 1;
-          if (pressed.has("KeyD")) strafe += 1;
-          if (pressed.has("KeyA")) strafe -= 1;
+        if (fwd !== 0 || strafe !== 0) {
           player.walkInput(fwd, strafe);
           wasWalking = true;
         } else if (wasWalking) {
@@ -336,29 +348,47 @@ export function createHumanInput(deps: HumanInputDeps): void {
         return;
       }
 
-      if (pressed.size === 0 || player.isGrabbing()) return;
+      if (player.isGrabbing()) {
+        // Hand-over-hand: forward pulls toward the handhold's far end (grab()
+        // faces you down it), back pulls toward its start.
+        if (fwd !== 0) player.pullAlong(config.pullSpeed * fwd, dt);
+        return;
+      }
+
+      if (fwd === 0 && strafe === 0 && ku === 0) return;
       const cam = scene.activeCamera;
       if (!cam) return;
 
       dir.set(0, 0, 0);
-      const fwd = cam.getDirection(Axis.Z);
-      const right = cam.getDirection(Axis.X);
-
-      if (pressed.has("KeyW")) dir.addInPlace(fwd);
-      if (pressed.has("KeyS")) dir.subtractInPlace(fwd);
-      if (pressed.has("KeyD")) dir.addInPlace(right);
-      if (pressed.has("KeyA")) dir.subtractInPlace(right);
-      if (pressed.has("KeyE")) dir.addInPlace(tmp.set(0, 1, 0));
-      if (pressed.has("KeyQ")) dir.addInPlace(tmp.set(0, -1, 0));
+      const camFwd = cam.getDirection(Axis.Z);
+      const camRight = cam.getDirection(Axis.X);
+      dir.addInPlace(tmp.copyFrom(camFwd).scaleInPlace(fwd));
+      dir.addInPlace(tmp.copyFrom(camRight).scaleInPlace(strafe));
+      dir.addInPlace(tmp.set(0, ku, 0));
 
       const len = dir.length();
       if (len < 1e-6) return;
-      const k = (THRUST_ACCEL * dt) / len;
+      // Analog: a half-tilted stick gives half thrust; diagonals normalize to 1.
+      const mag = Math.min(1, len);
+      const k = (THRUST_ACCEL * dt * mag) / len;
       player.applyImpulse([dir.x * k, dir.y * k, dir.z * k]);
     },
   });
 
-  // Match the initial camera/boots state (demo => draw off).
   syncDrawing();
   updateHint();
+
+  return {
+    lookRadians,
+    setStick: (x: number, y: number) => {
+      stickX = clamp1(x);
+      stickY = clamp1(y);
+    },
+    toggleBoots,
+    action,
+    toggleCamera,
+    paintAtScreen,
+    isBooted: () => player.isBooted(),
+    isGrabbing: () => player.isGrabbing(),
+  };
 }

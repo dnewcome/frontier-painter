@@ -20,6 +20,8 @@ import { createAvatar } from "./player/avatar";
 import { createHud } from "./hud/hud";
 import { createAutomation } from "./automation/automation";
 import { createHumanInput } from "./input/humanInput";
+import { createTouchInput } from "./input/touchInput";
+import { isTouchDevice } from "./input/device";
 
 function boot(): void {
   const canvas = document.getElementById("renderCanvas");
@@ -64,7 +66,10 @@ function boot(): void {
   // camera mode explicitly (they reset() + setCameraMode("demo")), so this only
   // affects the initial headed view and does not change scripted behavior.
   camera.setMode("fp");
-  const hud = createHud(hudRoot);
+  const touch = isTouchDevice();
+  // Phones get the compact objective HUD (symptoms, not answers) instead of the
+  // desktop debug readout.
+  const hud = createHud(hudRoot, { compact: touch });
 
   const api = createAutomation({
     engine: game,
@@ -87,7 +92,13 @@ function boot(): void {
   // existing draw->grab->pull->goal loop is untouched. These only perturb the
   // sim via per-fixed-step intent and one-shot verbs and never fire during the
   // scripted window.game playthrough, so determinism is preserved.
-  createHumanInput({
+  const cycleScenario = (): void => {
+    const rooms = ["frostgap", "crosswire"] as const;
+    const i = rooms.indexOf(paintField.scenario() as (typeof rooms)[number]);
+    api.loadScenario(rooms[(i + 1) % rooms.length]);
+  };
+
+  const controls = createHumanInput({
     scene: game.scene,
     engine: game,
     player,
@@ -98,12 +109,20 @@ function boot(): void {
     reset: () => api.reset(),
     selectColor: (c) => api.selectColor(c),
     paint: (id) => api.paint(id),
-    cycleScenario: () => {
-      const rooms = ["frostgap", "crosswire"] as const;
-      const i = rooms.indexOf(paintField.scenario() as (typeof rooms)[number]);
-      api.loadScenario(rooms[(i + 1) % rooms.length]);
-    },
+    cycleScenario,
   });
+
+  // Phones/tablets: on-screen twin-stick UI driving the same controls.
+  if (touch) {
+    createTouchInput({
+      scene: game.scene,
+      controls,
+      getState: () => api.getState(),
+      selectColor: (c) => api.selectColor(c),
+      cycleScenario,
+      reset: () => api.reset(),
+    });
+  }
 
   game.start();
 }

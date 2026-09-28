@@ -5,6 +5,7 @@
 // (resolved after first rendered frame), and routes API calls to the right
 // module. step() runs through engine.runFixedSteps for deterministic headless
 // playthroughs.
+import { Vector3, Matrix } from "@babylonjs/core/Maths/math.vector";
 import type { GameApi } from "../gameApi";
 import type { GameEngine, CameraRig } from "../core/engine";
 import type { Player } from "../player/player";
@@ -183,6 +184,27 @@ class AutomationImpl implements GameApi {
     const ok = this.deps.paintField.paint(id, this.selectedColor);
     this.deps.hud.update(this.getState());
     return ok;
+  }
+
+  projectToScreen(p: Vec3): [number, number] | null {
+    const scene = this.deps.engine.scene;
+    const cam = scene.activeCamera;
+    if (!cam) return null;
+    const eng = scene.getEngine();
+    const vp = cam.viewport.toGlobal(eng.getRenderWidth(), eng.getRenderHeight());
+    const out = Vector3.Project(
+      new Vector3(p[0], p[1], p[2]),
+      Matrix.IdentityReadOnly,
+      scene.getTransformMatrix(),
+      vp,
+    );
+    if (!(out.z >= 0 && out.z <= 1)) return null; // behind camera / clipped
+    // Render pixels -> CSS pixels (hardware scaling), offset by the canvas rect.
+    const s = eng.getHardwareScalingLevel();
+    const rect = eng.getRenderingCanvasClientRect();
+    const left = rect ? rect.left : 0;
+    const top = rect ? rect.top : 0;
+    return [left + out.x * s, top + out.y * s];
   }
 
   step(dtSeconds: number, steps = 1): GameState {

@@ -20,7 +20,30 @@ deliberately deferred. The room is dressed procedurally as a clean utilitarian
 > Early prototype, built iteratively. A deterministic `window.game` automation
 > API drives reproducible headless playthrough demos (see below).
 
-## Controls
+## Play it
+
+**https://dnewcome.github.io/frontier-painter/** — rebuilt and redeployed on every
+push to `main`.
+
+- **On iPhone:** open the link in Safari, turn the phone sideways, then
+  **Share → Add to Home Screen** to launch it fullscreen like an app.
+- **On desktop:** same link; keyboard + mouse controls below.
+
+## Touch controls (phone / tablet)
+
+- **Left thumb** — floating joystick: thrust while floating, walk with boots on,
+  pull hand-over-hand while holding a rail
+- **Right thumb** — drag to look (finger up → look up)
+- **Tap a broken surface** — paint it with the selected property
+- **Palette** (top-left) — cold · conductive · magnetic
+- **BOOTS** / **GRAB·JUMP** (bottom-right) — mag boots, grab a rail / push off
+- **☰ menu** — next room, restart, camera, optional **gyro look** (turn the
+  phone to look around; needs the HTTPS link)
+
+The phone HUD describes each broken surface by its **symptom** ("Overheated —
+too hot to grip") rather than the answer — diagnosing the fix is the puzzle.
+
+## Desktop controls
 
 - **1 / 2 / 3** — select brush property: cold · conductive · magnetic
 - **F** — paint the broken surface at the crosshair with the selected property
@@ -73,6 +96,9 @@ npm run playthrough:paint
 
 # Interaction slice ("The Cross-Wired Junction") -> demos/crosswire/
 npm run playthrough:crosswire
+
+# Phone playthrough (emulated iPhone, real touch input) -> demos/mobile/
+npm run playthrough:mobile
 
 # Magnetic-boots locomotion slice -> demos/latest/
 npm run playthrough

@@ -2,8 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Frontier Painter — Slice 1</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Frontier Painter</title>
+    <meta name="description" content="Repair a failing generation ship by painting physics back onto reality." />
+    <meta name="theme-color" content="#05080f" />
+    <!-- Home-screen app: fullscreen, no browser chrome, translucent status bar. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Frontier" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
     <style>
       html,
       body {
@@ -13,11 +26,23 @@
         height: 100%;
         overflow: hidden;
         background: #000;
-        font-family: system-ui, sans-serif;
+        font-family: system-ui, -apple-system, sans-serif;
+        /* No iOS rubber-band / pull-to-refresh / text selection on the game. */
+        overscroll-behavior: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        position: fixed;
+        inset: 0;
       }
       #renderCanvas {
-        width: 100vw;
-        height: 100vh;
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
         display: block;
         touch-action: none;
         outline: none;
@@ -47,11 +72,90 @@
       #hud.won .win-banner {
         display: inline-block;
       }
+      /* ---- phone HUD: compact objective panel, top-center ---- */
+      #hud.compact {
+        left: 50%;
+        transform: translateX(-50%);
+        top: max(8px, env(safe-area-inset-top));
+        padding: 0;
+        white-space: normal;
+        font-size: 12px;
+        max-width: min(46vw, 420px);
+      }
+      #hud.compact .hud-info,
+      #hud.compact .win-banner {
+        display: none !important;
+      }
+      #hud .hud-objective:empty {
+        display: none;
+      }
+      #hud .hud-objective {
+        background: rgba(6, 12, 24, 0.62);
+        border-radius: 12px;
+        padding: 8px 12px;
+      }
+      #hud .obj-title {
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        font-size: 11px;
+        opacity: 0.8;
+        margin-bottom: 4px;
+        text-align: center;
+      }
+      #hud .obj-row {
+        display: flex;
+        gap: 6px;
+        align-items: baseline;
+        margin-top: 2px;
+      }
+      #hud .obj-row .ic {
+        width: 1.2em;
+        text-align: center;
+      }
+      #hud .obj-row .sym {
+        opacity: 0.8;
+        font-weight: 400;
+      }
+      #hud .obj-row.ok .ic { color: #4fe08a; }
+      #hud .obj-row.bad .ic { color: #ff8a4d; }
+      #hud .obj-row.ok .sym { color: #4fe08a; }
+      /* ---- rotate-to-landscape prompt (phones in portrait) ---- */
+      #rotate-hint {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        background: #05080f;
+        color: #cfe8ff;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 14px;
+        text-align: center;
+        font-size: 16px;
+      }
+      #rotate-hint .phone {
+        width: 44px;
+        height: 76px;
+        border: 3px solid #8cd9ff;
+        border-radius: 9px;
+        animation: fp-rotate 1.8s ease-in-out infinite;
+      }
+      @keyframes fp-rotate {
+        0%, 25% { transform: rotate(0deg); }
+        60%, 100% { transform: rotate(-90deg); }
+      }
+      @media (orientation: portrait) and (pointer: coarse) {
+        #rotate-hint {
+          display: flex;
+        }
+      }
     </style>
   </head>
   <body>
     <canvas id="renderCanvas"></canvas>
     <div id="hud"></div>
+    <div id="rotate-hint"><div class="phone"></div>Rotate your phone to play</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

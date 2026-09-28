@@ -81,6 +81,10 @@ export interface Player {
   getSurfaceNormal(): Vec3;
   /** Unit tangent facing when booted, else current forward heading. */
   getFacing(): Vec3;
+  /** Current look as (yaw, pitch) in setFacing's OWN convention for the active
+   *  mode, so look input can apply deltas to the TRUE view (never a stale
+   *  accumulator that snaps after a grab / pull / plant / surface transition). */
+  getLook(): { yaw: number; pitch: number };
 }
 
 class PlayerImpl implements Player {
@@ -411,6 +415,25 @@ class PlayerImpl implements Player {
       return [f[0], f[1], f[2]];
     }
     return [this.forward[0], this.forward[1], this.forward[2]];
+  }
+
+  getLook(): { yaw: number; pitch: number } {
+    if (this.booted) {
+      // setFacing(yaw) builds facing = rotateAbout(ref, n, yaw)
+      //   = ref*cos(yaw) + (n x ref)*sin(yaw), so invert with atan2.
+      const s = this.plant.surface;
+      const n = s.normal;
+      const ref = refTangent(s);
+      const b = cross(n, ref);
+      const f = this.plant.facing;
+      return { yaw: Math.atan2(dot(f, b), dot(f, ref)), pitch: this.plant.pitch };
+    }
+    // Floating: forward = [sin(yaw)cos(p), sin(p), cos(yaw)cos(p)].
+    const f = this.forward;
+    return {
+      yaw: Math.atan2(f[0], f[2]),
+      pitch: Math.asin(Math.max(-1, Math.min(1, f[1]))),
+    };
   }
 
   isBooted(): boolean {
