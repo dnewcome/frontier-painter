@@ -7,6 +7,7 @@
 #   LC_ALL=C LANG=C blender -b -P art/character/build_ines.py -- art/character/out
 #
 # Writes: ines.glb, ines.blend, and turnaround renders (front, 3q, side, back, hero).
+# Add --smooth after the output dir for the original rounded (subdivided) look.
 # Blender is Z-up, metres; she faces -Y. ~1.62 m tall, stylized ~5 heads.
 import math
 import os
@@ -15,7 +16,11 @@ import sys
 import bpy
 from mathutils import Vector
 
-OUT = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else "art/character/out"
+_ARGS = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
+OUT = next((a for a in _ARGS if not a.startswith("--")), "art/character/out")
+# Default style is LOW-POLY: faceted icospheres / 8-sided tubes, no subdivision,
+# flat shading, 4 cel bands. `--smooth` rebuilds the original rounded version.
+LOWPOLY = "--smooth" not in _ARGS
 os.makedirs(OUT, exist_ok=True)
 
 # Start from an empty scene (the startup file's cube/camera/light would sit in frame).
@@ -88,9 +93,16 @@ def mat(name, glow=0.0):
         cr.interpolation = "CONSTANT"
         cr.elements[0].position = 0.0
         cr.elements[0].color = (*(base * 0.55), 1)
-        cr.elements[1].position = 0.28
-        cr.elements[1].color = (*base, 1)
-        hi = cr.elements.new(0.82)
+        if LOWPOLY:  # 4 bands so each facet catches the light as its own plane
+            cr.elements[1].position = 0.2
+            cr.elements[1].color = (*(base * 0.78), 1)
+            mid = cr.elements.new(0.45)
+            mid.color = (*base, 1)
+            hi = cr.elements.new(0.78)
+        else:
+            cr.elements[1].position = 0.28
+            cr.elements[1].color = (*base, 1)
+            hi = cr.elements.new(0.82)
         hi.color = (*[min(1.0, c * 1.25 + 0.03) for c in base], 1)
         bw = nt.nodes.new("ShaderNodeRGBToBW")
         em = nt.nodes.new("ShaderNodeEmission")
@@ -121,6 +133,10 @@ PARTS = []
 
 
 def finish(o, m, sub=2, outline=0.006, smooth=True):
+    if LOWPOLY:
+        sub = 0
+        smooth = False
+        outline = outline * 0.6
     o.data.materials.append(m)
     if smooth:
         for p in o.data.polygons:
@@ -143,7 +159,12 @@ def finish(o, m, sub=2, outline=0.006, smooth=True):
 
 
 def sphere(name, loc, scale, m, rot=(0, 0, 0), sub=1, outline=0.006, seg=24):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=seg, ring_count=seg // 2, location=loc, rotation=rot)
+    if LOWPOLY:
+        # big parts 80 faces, small bits 20 — even facets, unlike a UV sphere
+        big = max(scale) >= 0.05
+        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2 if big else 1, location=loc, rotation=rot)
+    else:
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=seg, ring_count=seg // 2, location=loc, rotation=rot)
     o = bpy.context.object
     o.name = name
     o.scale = scale
@@ -158,11 +179,13 @@ def box(name, loc, scale, m, rot=(0, 0, 0), sub=2, outline=0.006, bevel=0.0):
     if bevel:
         bv = o.modifiers.new("bev", "BEVEL")
         bv.width = bevel
-        bv.segments = 3
+        bv.segments = 1 if LOWPOLY else 3
     return finish(o, m, sub, outline)
 
 
 def cyl(name, loc, r, depth, m, rot=(0, 0, 0), sub=1, outline=0.006, verts=24, r2=None):
+    if LOWPOLY:
+        verts = min(verts, 8)
     if r2 is None:
         bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=depth, location=loc, rotation=rot)
     else:
@@ -174,7 +197,7 @@ def cyl(name, loc, r, depth, m, rot=(0, 0, 0), sub=1, outline=0.006, verts=24, r
 
 def torus(name, loc, R, r, m, rot=(0, 0, 0), scale=(1, 1, 1), outline=0.004, sub=1):
     bpy.ops.mesh.primitive_torus_add(major_radius=R, minor_radius=r, location=loc, rotation=rot,
-                                     major_segments=40, minor_segments=12)
+                                     major_segments=16 if LOWPOLY else 40, minor_segments=5 if LOWPOLY else 12)
     o = bpy.context.object
     o.name = name
     o.scale = scale
@@ -323,7 +346,7 @@ sphere("smirk", (0.03, -0.154, HZ - 0.076), (0.006, 0.005, 0.006), mat("skin_dar
 sphere("hair_shave", (0, 0.012, HZ + 0.018), (0.172, 0.165, 0.17), mat("skin_dark"), outline=0.004)
 import random
 random.seed(7)
-for i in range(64):
+for i in range(34 if LOWPOLY else 64):
     a = random.uniform(0, 2 * math.pi)
     rr = random.uniform(0.0, 0.13)
     x, y = math.cos(a) * rr, math.sin(a) * rr * 0.95 + 0.012
@@ -331,7 +354,7 @@ for i in range(64):
     if y < -0.11:
         continue
     streak = -0.06 < x < -0.01 and y < 0.02
-    s = random.uniform(0.032, 0.048)
+    s = random.uniform(0.042, 0.06) if LOWPOLY else random.uniform(0.032, 0.048)
     sphere(f"curl_{i}", (x, y, z), (s, s, s * 0.9), mat("copper" if streak else "hair"), outline=0.004, sub=1, seg=14)
 # goggles pushed up as a headband
 _bz = 0.075  # band height above head centre

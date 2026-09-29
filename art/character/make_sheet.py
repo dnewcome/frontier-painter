@@ -24,7 +24,7 @@ W, H = 2400, 1500
 sheet = Image.new("RGBA", (W, H), BG + (255,))
 d = ImageDraw.Draw(sheet)
 d.text((60, 40), "INES “OKE” OKAFOR-HALE", font=font(56, True), fill=INK)
-d.text((60, 112), "Surface Engineer, Grade II — the ship's painter · Frontier Painter · concept model v1",
+d.text((60, 112), "Surface Engineer, Grade II — the ship's painter · Frontier Painter · concept model v2 (low-poly)",
        font=font(26), fill=MUTE)
 
 # Turnaround: same scale for all four views, bottoms aligned.

@@ -5,6 +5,12 @@ this is for visual development and, later, as a placeholder in Babylon.
 
 ![Character sheet](out/ines_sheet.png)
 
+## Sketches
+
+Neo-anime concept sketches (model sheet, expressions, at work, in the Paint
+Locker) are in [`sketches/`](sketches/) — thumbnails plus links to the
+full-resolution Canva originals.
+
 ## Files
 
 | File | What |
