@@ -123,6 +123,11 @@ async function main() {
     await touch("touchEnd");
     return s;
   };
+  /** Center of the look stick's idle ring (look swipes must start on it). */
+  const lookRing = async () => {
+    const b = await page.locator(".t-stick-base.look").boundingBox();
+    return [b.x + b.width / 2, b.y + b.height / 2];
+  };
   const swipe = async (x0, y0, x1, y1) => {
     await touch("touchStart", x0, y0);
     for (let i = 1; i <= 10; i++) await touch("touchMove", x0 + ((x1 - x0) * i) / 10, y0 + ((y1 - y0) * i) / 10);
@@ -211,7 +216,7 @@ async function main() {
       // Object right of center -> look right (finger right); above -> look up (finger up).
       const fdx = p ? clamp((p[0] - cx) / 2.2) : 60;
       const fdy = p ? clamp((p[1] - cy) / 2.2) : 0;
-      await swipe(640, 220, 640 + fdx, 220 + fdy);
+      { const [rx, ry] = await lookRing(); await swipe(rx, ry, rx + fdx, ry + fdy); }
     }
     // Let go of the rail: the conduit is in reach, so the button turns to PAINT.
     await page.locator('.t-btn[data-role="action"]').tap();
@@ -238,7 +243,7 @@ async function main() {
       const clamp = (v) => Math.max(-AIM_MAX, Math.min(AIM_MAX, v));
       const fdx = p ? clamp((p[0] - cx) / 2.2) : 60;
       const fdy = p ? clamp((p[1] - cy) / 2.2) : 0;
-      await swipe(640, 220, 640 + fdx, 220 + fdy);
+      { const [rx, ry] = await lookRing(); await swipe(rx, ry, rx + fdx, ry + fdy); }
     }
     const pd = await exitOnScreen();
     assert(pd && Math.abs(pd[0] - cx) < 60 && Math.abs(pd[1] - cy) < 60, "10 facing the exit door");

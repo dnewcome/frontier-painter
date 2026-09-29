@@ -205,3 +205,43 @@ test("phone: holding the right look stick at its edge keeps turning; releasing s
   await expect(page.locator(".t-stick-base.look")).toHaveClass(/idle/);
   expect(errors).toEqual([]);
 });
+
+test("phone: stuck-stick guards — left touches always drive the stick, look only from its ring, focus loss releases", async ({ page }) => {
+  const errors = await boot(page);
+  const c = await page.context().newCDPSession(page);
+  const T = (type: string, pts: [number, number, number][]) =>
+    c.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y, id]) => ({ x, y, id })) });
+  const stickIdle = () =>
+    page.evaluate(() => document.querySelector(".t-stick-base:not(.look)")!.classList.contains("idle"));
+  const yaw = async () => {
+    const f = (await state(page)).facing;
+    return Math.atan2(f[0], f[2]);
+  };
+
+  // 1. Hold the stick, then the app loses focus (backgrounded) with no
+  //    touch-end ever arriving: the stick lets go.
+  await T("touchStart", [[150, 300, 1]]);
+  await T("touchMove", [[150, 240, 1]]);
+  expect(await stickIdle()).toBe(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  expect(await stickIdle()).toBe(true);
+
+  // 2. A new left touch takes the stick (never becomes a look drag), even while
+  //    the old finger is (as far as the page knows) still down.
+  const y0 = await yaw();
+  await T("touchStart", [[150, 240, 1], [200, 300, 2]]);
+  await T("touchMove", [[150, 240, 1], [260, 300, 2]]); // drag right on the left side
+  expect(await stickIdle()).toBe(false);
+  expect(Math.abs((await yaw()) - y0)).toBeLessThan(1e-6); // no look from the left
+  await T("touchEnd", []);
+  expect(await stickIdle()).toBe(true);
+
+  // 3. Dragging on the right but away from the look ring does nothing.
+  const y1 = await yaw();
+  await T("touchStart", [[470, 80, 3]]);
+  for (let i = 1; i <= 6; i++) await T("touchMove", [[470 + i * 15, 80, 3]]);
+  await T("touchEnd", []);
+  expect(Math.abs((await yaw()) - y1)).toBeLessThan(1e-6);
+  await c.detach();
+  expect(errors).toEqual([]);
+});

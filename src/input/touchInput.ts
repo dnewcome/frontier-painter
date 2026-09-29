@@ -5,7 +5,8 @@
 //
 //   left thumb   floating joystick  -> thrust (floating) / walk (boots) /
 //                                       pull along a grabbed handhold
-//   right thumb  look stick         -> small moves aim directly (finger up =
+//   right thumb  look stick (starts on/near its ring; nowhere else looks)
+//                                    -> small moves aim directly (finger up =
 //                                       look up); hold at the ring's edge to
 //                                       keep turning, faster the further out
 //   PAINT        near a broken surface, the action button turns into PAINT:
@@ -284,25 +285,55 @@ export function createTouchInput(deps: TouchInputDeps): void {
     controls.setStick((vx / len) * scaled, (-vy / len) * scaled);
   };
 
+  // Each side has ONE job, so a lost touch-end can never leave a stale stick:
+  //   left zone  -> the move stick; a new left touch always takes it over;
+  //   look ring  -> the look stick, only when the touch starts on/near its
+  //                 ring (it re-centers under the thumb there);
+  //   elsewhere  -> ignored (no free-drag look).
+  const lookStartRadius = (): number => stickR * 2.3;
+
+  const releaseTrack = (id: number): void => {
+    const t = tracks.get(id);
+    if (!t) return;
+    tracks.delete(id);
+    if (id === stickId) {
+      stickId = null;
+      controls.setStick(0, 0);
+      showIdleStick();
+    }
+    if (id === lookId) {
+      lookId = null;
+      showIdleLook();
+    }
+  };
+  const releaseAll = (): void => {
+    for (const id of [...tracks.keys()]) releaseTrack(id);
+    controls.setStick(0, 0);
+  };
+
   layer.addEventListener("pointerdown", (e) => {
     e.preventDefault();
-    layer.setPointerCapture?.(e.pointerId);
     const inStickZone = e.clientX < window.innerWidth * STICK_ZONE;
-    const role: Track["role"] = inStickZone && stickId === null ? "stick" : "look";
-    // Only one look stick; any extra right-side finger still drag-looks.
-    const t: Track = {
-      role,
-      x0: e.clientX,
-      y0: e.clientY,
-      x: e.clientX,
-      y: e.clientY,
-    };
+    let role: Track["role"] | null = null;
+    if (inStickZone) {
+      role = "stick";
+      if (stickId !== null) releaseTrack(stickId); // stale stick: take over
+    } else {
+      const [lx, ly] = lookIdlePos();
+      if (Math.hypot(e.clientX - lx, e.clientY - ly) <= lookStartRadius()) {
+        role = "look";
+        if (lookId !== null) releaseTrack(lookId);
+      }
+    }
+    if (!role) return;
+    layer.setPointerCapture?.(e.pointerId);
+    const t: Track = { role, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY };
     tracks.set(e.pointerId, t);
     if (role === "stick") {
       stickId = e.pointerId;
       base.classList.remove("idle");
       placeStick(t.x0, t.y0, t.x0, t.y0);
-    } else if (lookId === null) {
+    } else {
       lookId = e.pointerId;
       lookBase.classList.remove("idle");
       placeLook(t.x0, t.y0, t.x0, t.y0);
@@ -322,26 +353,40 @@ export function createTouchInput(deps: TouchInputDeps): void {
       // Direct aim: finger motion turns the view like a mouse (finger up ->
       // look up); the edge-hold turn is added per frame above.
       controls.lookRadians(dx * LOOK_SENS, -dy * LOOK_SENS);
-      if (e.pointerId === lookId) updateLookKnob(t);
+      updateLookKnob(t);
     }
   });
 
-  const endTrack = (e: PointerEvent, isCancel: boolean): void => {
-    const t = tracks.get(e.pointerId);
-    if (!t) return;
-    tracks.delete(e.pointerId);
-    if (t.role === "stick") {
-      stickId = null;
-      controls.setStick(0, 0);
-      showIdleStick();
+  layer.addEventListener("pointerup", (e) => releaseTrack(e.pointerId));
+  layer.addEventListener("pointercancel", (e) => releaseTrack(e.pointerId));
+  layer.addEventListener("lostpointercapture", (e) => releaseTrack(e.pointerId));
+
+  // Safety nets for a touch-end that never arrives (iOS drops pointerup now and
+  // then on multi-touch, and backgrounding the app mid-hold sends nothing):
+  // cross-check against the fingers actually still on the glass whenever one
+  // lifts, and let go of everything when the app loses focus.
+  const onTouchEnd = (e: TouchEvent): void => {
+    if (e.touches.length === 0) {
+      releaseAll();
+      return;
     }
-    if (e.pointerId === lookId) {
-      lookId = null;
-      showIdleLook();
+    const near = 48 * scale + stickR;
+    for (const [id, t] of [...tracks]) {
+      let alive = false;
+      for (let i = 0; i < e.touches.length; i++) {
+        const q = e.touches[i];
+        if (Math.hypot(q.clientX - t.x, q.clientY - t.y) <= near) alive = true;
+      }
+      if (!alive) releaseTrack(id);
     }
   };
-  layer.addEventListener("pointerup", (e) => endTrack(e, false));
-  layer.addEventListener("pointercancel", (e) => endTrack(e, true));
+  document.addEventListener("touchend", onTouchEnd, { capture: true });
+  document.addEventListener("touchcancel", onTouchEnd, { capture: true });
+  window.addEventListener("blur", releaseAll);
+  window.addEventListener("pagehide", releaseAll);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") releaseAll();
+  });
 
   // Kill iOS scroll / rubber-band / pinch-zoom / magnifier on the play surface.
   // (touch-action:none covers most browsers; iOS also needs the touch + gesture

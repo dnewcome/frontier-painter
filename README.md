@@ -39,7 +39,7 @@ push to `main`.
 
 - **Left thumb** — floating joystick: thrust while floating, walk with boots on,
   pull hand-over-hand while holding a rail
-- **Right thumb** — look stick (appears where you touch): small moves aim
+- **Right thumb** — look stick: start on (or near) its amber ring; small moves aim
   directly like a mouse (finger up → look up); push the knob to the ring's edge
   and hold to keep turning — the further out, the faster
 - **PAINT** — walk or float up to a broken surface (within ~3.5 m): a PAINT
