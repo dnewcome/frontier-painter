@@ -5,6 +5,8 @@
 // (resolved after first rendered frame), and routes API calls to the right
 // module. step() runs through engine.runFixedSteps for deterministic headless
 // playthroughs.
+import type { Dressing } from "../dressing/dressing";
+import { wallLabelsFor } from "../levels";
 import { Vector3, Matrix } from "@babylonjs/core/Maths/math.vector";
 import type { GameApi } from "../gameApi";
 import type { GameEngine, CameraRig } from "../core/engine";
@@ -34,6 +36,8 @@ export interface AutomationDeps {
   config: SimConfig;
   /** Cosmetic third-person player figure; posed in the per-frame observer. */
   avatar?: Avatar;
+  /** Set dressing; its wall stencils are repainted per room. */
+  dressing?: Dressing;
 }
 
 class AutomationImpl implements GameApi {
@@ -43,6 +47,8 @@ class AutomationImpl implements GameApi {
   private elapsed = 0;
   private _isReady = false;
   private selectedColor: PaintProperty = "cold";
+  /** Latched when the player exits through the open door. */
+  private cleared = false;
 
   constructor(deps: AutomationDeps) {
     this.deps = deps;
@@ -65,6 +71,13 @@ class AutomationImpl implements GameApi {
           paintField.complete()
         ) {
           world.goal.setReached(true);
+        }
+        // Console online -> the exit door opens; moving into the doorway once
+        // it's mostly open clears the room (main.ts then loads the next one).
+        if (world.goal.reached() && !world.door.isOpen()) world.door.setOpen(true);
+        world.door.fixedUpdate(dt);
+        if (!this.cleared && world.door.progress() > 0.6 && world.door.inDoorway(player.getPosition())) {
+          this.cleared = true;
         }
       },
     });
@@ -107,6 +120,7 @@ class AutomationImpl implements GameApi {
     // gone before it re-arms its targets to the broken state.
     this.deps.paintField.reset();
     this.selectedColor = "cold";
+    this.cleared = false;
     this.deps.player.reset();
     this.elapsed = 0;
     this.deps.hud.update(this.getState());
@@ -170,6 +184,7 @@ class AutomationImpl implements GameApi {
 
   loadScenario(name: ScenarioName): void {
     this.deps.paintField.setScenario(name);
+    this.deps.dressing?.setLabels(wallLabelsFor(name));
     // Full reset so the player is at spawn and the registry/world are clean for
     // the freshly-armed scenario.
     this.reset();
@@ -233,6 +248,11 @@ class AutomationImpl implements GameApi {
       selectedColor: this.selectedColor,
       paintSurfaces: this.deps.paintField.states(),
       paintComplete: this.deps.paintField.complete(),
+      scenario: this.deps.paintField.scenario(),
+      doorOpen: world.door.isOpen(),
+      doorProgress: world.door.progress(),
+      exitAnchor: world.door.anchor,
+      roomCleared: this.cleared,
     };
   }
 }

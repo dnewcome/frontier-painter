@@ -11,12 +11,15 @@ import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { Vec3, SimConfig } from "../types";
 import { createGoal, type Goal } from "./goal";
+import { createDoor, type Door } from "./door";
 
 export interface World {
   readonly goal: Goal;
+  /** Exit door in the +Z wall behind the console; opens once it's online. */
+  readonly door: Door;
   /** Deterministic player spawn (mirrors config.spawn). */
   readonly spawn: Vec3;
-  /** Reset goal latch + visual state. */
+  /** Reset goal latch, door, + visual state. */
   reset(): void;
 }
 
@@ -32,6 +35,7 @@ const GOAL_POSITION: Vec3 = [0, 1, 8];
 
 class WorldImpl implements World {
   readonly goal: Goal;
+  readonly door: Door;
   readonly spawn: Vec3;
 
   constructor(scene: Scene, config: SimConfig) {
@@ -85,10 +89,12 @@ class WorldImpl implements World {
 
     // Goal marker (emissive sphere) near the far end.
     this.goal = createGoal(scene, GOAL_POSITION, config.goalRadius);
+    this.door = createDoor(scene, { wallZ: ROOM_Z / 2 - WALL_T / 2, floorY: WALL_T / 2 });
   }
 
   reset(): void {
     this.goal.reset();
+    this.door.reset();
   }
 }
 

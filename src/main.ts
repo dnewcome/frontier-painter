@@ -22,6 +22,8 @@ import { createAutomation } from "./automation/automation";
 import { createHumanInput } from "./input/humanInput";
 import { createTouchInput } from "./input/touchInput";
 import { isTouchDevice } from "./input/device";
+import { createTransition } from "./hud/transition";
+import { levelNumber, nextLevel } from "./levels";
 
 function boot(): void {
   const canvas = document.getElementById("renderCanvas");
@@ -46,7 +48,7 @@ function boot(): void {
 
   const world = createWorld(game.scene, config);
   // Visual-only ISS-style set dressing (no collisions, deterministic layout).
-  createDressing(game.scene);
+  const dressing = createDressing(game.scene);
   const drawing = createDrawing(game.scene, config);
   // Live pointer-draw starts OFF; the human-input wiring turns it on only in
   // first-person mode. The deterministic automation/test path runs in demo mode
@@ -81,6 +83,7 @@ function boot(): void {
     hud,
     config,
     avatar,
+    dressing,
   });
 
   // Headed play boots straight into the first paint puzzle. The deterministic
@@ -93,10 +96,20 @@ function boot(): void {
   // sim via per-fixed-step intent and one-shot verbs and never fire during the
   // scripted window.game playthrough, so determinism is preserved.
   const cycleScenario = (): void => {
-    const rooms = ["frostgap", "crosswire"] as const;
-    const i = rooms.indexOf(paintField.scenario() as (typeof rooms)[number]);
-    api.loadScenario(rooms[(i + 1) % rooms.length]);
+    api.loadScenario(nextLevel(paintField.scenario()).id);
   };
+
+  // Walking out through the open exit door fades to the next room's title card
+  // and loads it while the screen is black. (The empty "none" room has no next.)
+  const transition = createTransition();
+  game.scene.onBeforeRenderObservable.add(() => {
+    if (transition.busy() || paintField.scenario() === "none") return;
+    if (!api.getState().roomCleared) return;
+    const next = nextLevel(paintField.scenario());
+    transition.play(`ROOM ${levelNumber(next.id)} · ${next.sector}`, next.title.toUpperCase(), () =>
+      api.loadScenario(next.id),
+    );
+  });
 
   const controls = createHumanInput({
     scene: game.scene,

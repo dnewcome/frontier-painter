@@ -89,6 +89,17 @@ export interface GameState {
   paintSurfaces: PaintSurfaceState[];
   /** True when every armed surface is satisfied (vacuously true when none). */
   paintComplete: boolean;
+  // ---- room progression (additive) ----
+  /** Active scenario id ("none" = the empty legacy room). */
+  scenario: string;
+  /** True once the console is online and the exit door is commanded open. */
+  doorOpen: boolean;
+  /** Door panel retraction, 0 (sealed) .. 1 (open). */
+  doorProgress: number;
+  /** Center of the exit doorway (world space). */
+  exitAnchor: Vec3;
+  /** True once the player has moved through the open exit door. */
+  roomCleared: boolean;
 }
 
 /** Tunable simulation constants shared across player + drawing + world. */

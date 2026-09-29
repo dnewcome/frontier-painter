@@ -100,7 +100,6 @@ const CSS = `
 .t-card .row { display: flex; gap: 10px; }
 .t-card button { padding: 12px 18px; border-radius: 10px; background: rgba(140,217,255,0.2);
   box-shadow: inset 0 0 0 2px rgba(140,217,255,0.6); font-size: 14px; }
-.t-card.win h2 { color: #4fe08a; }
 `;
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -434,16 +433,6 @@ export function createTouchInput(deps: TouchInputDeps): void {
     closeMenu();
   });
 
-  // ---- win card ------------------------------------------------------------
-  const win = el("div", "t-card win", root);
-  el("h2", "", win, "CONSOLE ONLINE");
-  el("p", "", win, "The ship's reality holds — for now.");
-  const winRow = el("div", "row", win);
-  const wNext = el("button", "", winRow, "Next room ▶");
-  const wAgain = el("button", "", winRow, "Replay");
-  wNext.addEventListener("click", () => deps.cycleScenario());
-  wAgain.addEventListener("click", () => deps.reset());
-
   // ---- first-run how-to ----------------------------------------------------
   const intro = el("div", "t-card show", root);
   el("h2", "", intro, "FRONTIER PAINTER");
@@ -509,9 +498,14 @@ export function createTouchInput(deps: TouchInputDeps): void {
       actionBtn.classList.toggle("on", s.grabbing);
     }
     if (s.goalReached !== lastWin) {
+      const was = lastWin;
       lastWin = s.goalReached;
-      win.classList.toggle("show", s.goalReached);
-      if (s.goalReached) toast.classList.remove("show"); // the card says it all
+      // Console online -> the exit door behind it opens; going through it
+      // loads the next room (main.ts). Skip the cue on the initial sync.
+      if (s.goalReached && was === false) {
+        say("Console online — exit door open", "good");
+        feel("success");
+      }
     }
   });
 }

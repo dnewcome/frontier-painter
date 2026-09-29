@@ -61,7 +61,9 @@ too hot to grip") rather than the answer — diagnosing the fix is the puzzle.
 Headed play boots straight into the **Frost Gap** paint puzzle; press **P** to
 switch to the **Cross-Wired Junction**. The palette + a per-surface repair
 checklist show in the HUD; the console won't power until every broken surface is
-repaired.
+repaired. Once the console is online, the **exit door** behind it slides open
+(red → green light); float or walk through it to go to the next room. Each
+room's wall stencils (sector, bay, EXIT → next sector) change with it.
 
 Two puzzle rooms exist so far:
 
@@ -114,7 +116,8 @@ npm run playthrough:paint
 # Interaction slice ("The Cross-Wired Junction") -> demos/crosswire/
 npm run playthrough:crosswire
 
-# Phone playthrough (emulated iPhone, real touch input) -> demos/mobile/
+# Phone playthrough (emulated iPhone, real touch input; solves room 1 and
+# goes through the exit door into room 2) -> demos/mobile/
 npm run playthrough:mobile
 
 # Magnetic-boots locomotion slice -> demos/latest/

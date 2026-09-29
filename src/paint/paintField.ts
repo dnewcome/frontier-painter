@@ -163,7 +163,8 @@ class PaintFieldImpl implements PaintField {
     return t;
   }
 
-  /** A dead power conduit by the console; make it CONDUCTIVE to open the door. */
+  /** A dead power conduit by the console; make it CONDUCTIVE to power the console
+   *  (which opens the room's exit door — see world/door.ts). */
   private makeConduitTarget(): Target {
     const panel = MeshBuilder.CreateBox(
       "paint:power-conduit",
@@ -176,9 +177,6 @@ class PaintFieldImpl implements PaintField {
     const mat = new StandardMaterial("paint:power-conduit:mat", this.scene);
     panel.material = mat;
 
-    const door = this.makeDoor("paint:console-door", [0, 1.6, 9.7]);
-    const doorMat = door.material as StandardMaterial;
-
     return this.baseTarget({
       id: "power-conduit",
       label: "Power conduit",
@@ -186,14 +184,11 @@ class PaintFieldImpl implements PaintField {
       symptom: "Dead circuit — no current",
       mesh: panel,
       mat,
-      extras: [door],
       onFix: () => {
         applyFixedLook(mat, PROP_COLOR.conductive);
-        powerDoor(doorMat, true);
       },
       onBreak: () => {
         applyBrokenLook(mat);
-        powerDoor(doorMat, false);
       },
     });
   }
@@ -203,7 +198,7 @@ class PaintFieldImpl implements PaintField {
   private makeCrosswireChain(): Target[] {
     // The shroud sits IN FRONT of the core; frosting it retracts it upward,
     // exposing the conductive core behind.
-    const shroudHome = new Vector3(-2, 1.7, 9.55);
+    const shroudHome = new Vector3(-2.6, 1.7, 9.55); // clear of the exit door frame
     const shroud = MeshBuilder.CreateBox(
       "paint:coolant-shroud",
       { width: 1.8, height: 1.8, depth: 0.14 },
@@ -220,14 +215,11 @@ class PaintFieldImpl implements PaintField {
       { width: 1.1, height: 1.1, depth: 0.12 },
       this.scene,
     );
-    core.position.set(-2, 1.6, 9.75);
+    core.position.set(-2.6, 1.6, 9.75);
     core.checkCollisions = false;
     core.isPickable = true;
     const coreMat = new StandardMaterial("paint:power-core:mat", this.scene);
     core.material = coreMat;
-
-    const door = this.makeDoor("paint:crosswire-door", [0, 1.6, 9.85]);
-    const doorMat = door.material as StandardMaterial;
 
     const shroudTarget = this.baseTarget({
       id: "coolant-shroud",
@@ -255,32 +247,15 @@ class PaintFieldImpl implements PaintField {
       hiddenUntilPrereq: true,
       mesh: core,
       mat: coreMat,
-      extras: [door],
       onFix: () => {
         applyFixedLook(coreMat, PROP_COLOR.conductive);
-        powerDoor(doorMat, true);
       },
       onBreak: () => {
         applyBrokenLook(coreMat);
-        powerDoor(doorMat, false);
       },
     });
 
     return [shroudTarget, coreTarget];
-  }
-
-  /** Shared "door slab" the powered surface lights up. */
-  private makeDoor(name: string, pos: Vec3): Mesh {
-    const door = MeshBuilder.CreateBox(
-      name,
-      { width: 2.4, height: 3.2, depth: 0.1 },
-      this.scene,
-    );
-    door.position.set(pos[0], pos[1], pos[2]);
-    door.checkCollisions = false;
-    door.isPickable = false;
-    door.material = new StandardMaterial(`${name}:mat`, this.scene);
-    return door;
   }
 
   /** Fill in Target defaults + register the pickable mesh id. */
@@ -446,16 +421,6 @@ function applyFixedLook(mat: StandardMaterial, tint: Color3): void {
   mat.emissiveColor = tint.clone();
   mat.specularColor = new Color3(0.2, 0.2, 0.2);
   mat.alpha = 1;
-}
-
-function powerDoor(mat: StandardMaterial, on: boolean): void {
-  if (on) {
-    mat.diffuseColor = new Color3(0.1, 0.5, 0.3);
-    mat.emissiveColor = new Color3(0.12, 0.7, 0.4); // powered green
-  } else {
-    mat.diffuseColor = new Color3(0.1, 0.11, 0.13);
-    mat.emissiveColor = new Color3(0.02, 0.02, 0.03); // dark / unpowered
-  }
 }
 
 export function createPaintField(

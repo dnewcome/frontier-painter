@@ -4,6 +4,8 @@
 // banner. Stateless beyond DOM nodes + a tiny render cache; refreshed each frame
 // from a GameState snapshot.
 import { PAINT_PALETTE, type GameState } from "../types";
+import { levelNumber, levelOf } from "../levels";
+import type { ScenarioName } from "../paint/paintField";
 
 export interface Hud {
   /** Refresh overlay text from the latest snapshot (call each frame). */
@@ -50,7 +52,7 @@ class HudImpl implements Hud {
 
     this.banner = document.createElement("div");
     this.banner.className = "win-banner";
-    this.banner.textContent = "GOAL REACHED — WIN!";
+    this.banner.textContent = "CONSOLE ONLINE — EXIT DOOR OPEN";
 
     this.root.appendChild(this.info);
     this.root.appendChild(this.banner);
@@ -102,14 +104,19 @@ class HudImpl implements Hud {
         paintLines.push(`  ${s.satisfied ? "✓" : "✗"} ${s.label} — needs ${s.required} · ${status}`);
       }
       paintLines.push(
-        state.paintComplete
-          ? "  console: POWERED"
-          : "  console: locked (repair all surfaces)",
+        state.goalReached
+          ? "  console: ONLINE — exit door open, go through it"
+          : state.paintComplete
+            ? "  console: POWERED (get to it)"
+            : "  console: locked (repair all surfaces)",
       );
     }
 
+    const lvl = levelOf(state.scenario as ScenarioName);
     const lines = [
-      "FRONTIER PAINTER",
+      lvl
+        ? `FRONTIER PAINTER — ROOM ${levelNumber(lvl.id)}: ${lvl.title}`
+        : "FRONTIER PAINTER",
       `ready: ${state.ready ? "yes" : "no"}   camera: ${state.cameraMode}`,
       `pos: ${fmtVec(p)}`,
       `vel: ${fmtVec(state.velocity)}  |v|=${speed.toFixed(2)} m/s`,
@@ -137,12 +144,16 @@ class HudImpl implements Hud {
     if (!obj) return;
     let html = "";
     if (state.paintSurfaces.length > 0) {
+      const lvl = levelOf(state.scenario as ScenarioName);
+      if (lvl) {
+        html += `<div class="obj-room">ROOM ${levelNumber(lvl.id)} · ${esc(lvl.title)}</div>`;
+      }
       const title = state.goalReached
-        ? "CONSOLE ONLINE"
+        ? "DOOR OPEN — GO THROUGH IT"
         : state.paintComplete
           ? "CONSOLE POWERED — GET TO IT"
           : "REPAIR THE SHIP";
-      html += `<div class="obj-title">${title}</div>`;
+      html += `<div class="obj-title${state.goalReached ? " go" : ""}">${title}</div>`;
       for (const s of state.paintSurfaces) {
         const cls = s.satisfied ? "ok" : s.available ? "bad" : "lock";
         const icon = s.satisfied ? "✓" : s.available ? "✗" : "🔒";

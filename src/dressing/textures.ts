@@ -196,9 +196,15 @@ export function makeLabelTexture(
   line1: string,
   line2 = "",
 ): DynamicTexture {
+  const tex = new DynamicTexture(name, { width: 512, height: 256 }, scene, false);
+  drawLabel(tex, line1, line2);
+  return tex;
+}
+
+/** (Re)draw a label plate in place — used when a room change swaps the text. */
+export function drawLabel(tex: DynamicTexture, line1: string, line2 = ""): void {
   const W = 512;
   const H = 256;
-  const tex = new DynamicTexture(name, { width: W, height: H }, scene, false);
   const c = ctxOf(tex);
 
   // Plate.
@@ -225,6 +231,60 @@ export function makeLabelTexture(
 
   // invertY=true: canvas row 0 is the TOP but GL's v=0 is the BOTTOM. The other
   // (symmetric, pattern) textures don't care; text renders upside-down without it.
+  tex.update(true);
+}
+
+/**
+ * The lit airlock seen through an open exit door: a one-point-perspective
+ * corridor (receding light rings, floor chevrons, a bright far hatch) so the
+ * doorway reads as a passage rather than a painted rectangle.
+ */
+export function makeAirlockTexture(scene: Scene, name: string): DynamicTexture {
+  const W = 256;
+  const H = 320;
+  const tex = new DynamicTexture(name, { width: W, height: H }, scene, false);
+  const c = ctxOf(tex);
+  const cx = W / 2;
+  const cy = H * 0.46;
+
+  c.fillStyle = "#0b1422";
+  c.fillRect(0, 0, W, H);
+  // Receding frames: each ring is a scaled copy of the doorway toward the
+  // vanishing point, alternating dark hull and a cool light strip.
+  for (let i = 0; i < 9; i++) {
+    const k = Math.pow(0.78, i);
+    const w = W * k;
+    const h = H * k;
+    const x = cx - w / 2;
+    const y = cy - h * 0.46;
+    c.fillStyle = i % 2 === 0 ? `rgba(40,58,82,${0.9 - i * 0.06})` : "#0b1422";
+    c.fillRect(x, y, w, h);
+    c.strokeStyle = `rgba(150,215,255,${0.85 - i * 0.07})`;
+    c.lineWidth = Math.max(1, 6 * k);
+    c.strokeRect(x + 4 * k, y + 4 * k, w - 8 * k, h - 8 * k);
+  }
+  // Far hatch glow.
+  const g = c.createRadialGradient(cx, cy, 2, cx, cy, W * 0.22);
+  g.addColorStop(0, "rgba(220,245,255,1)");
+  g.addColorStop(1, "rgba(120,200,255,0)");
+  c.fillStyle = g;
+  c.fillRect(0, 0, W, H);
+  // Floor guide chevrons pointing in.
+  c.fillStyle = "rgba(79,224,138,0.8)";
+  for (let i = 0; i < 4; i++) {
+    const k = Math.pow(0.7, i);
+    const y = cy + H * 0.46 * k - 18 * k;
+    const s = 22 * k;
+    c.beginPath();
+    c.moveTo(cx - s, y);
+    c.lineTo(cx, y - s * 0.7);
+    c.lineTo(cx + s, y);
+    c.lineTo(cx + s, y + 5 * k);
+    c.lineTo(cx, y - s * 0.7 + 5 * k);
+    c.lineTo(cx - s, y + 5 * k);
+    c.closePath();
+    c.fill();
+  }
   tex.update(true);
   return tex;
 }

@@ -22,7 +22,10 @@ import "@babylonjs/core/Meshes/meshBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
+import type { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture";
+import { wallLabelsFor, type WallLabels } from "../levels";
 import {
+  drawLabel,
   makePanelTexture,
   makeGratingTexture,
   makeStarfieldTexture,
@@ -41,6 +44,8 @@ export interface DressingOptions {
 }
 
 export interface Dressing {
+  /** Repaint the wall stencils for the current room. */
+  setLabels(labels: WallLabels): void;
   dispose(): void;
 }
 
@@ -128,7 +133,7 @@ export function createDressing(
     y: number,
     z: number,
     rotY: number,
-  ): void => {
+  ): DynamicTexture => {
     const mat = new StandardMaterial(name, scene);
     const tex = makeLabelTexture(scene, name + "Tex", l1, l2);
     mat.diffuseTexture = tex;
@@ -143,6 +148,7 @@ export function createDressing(
     // stencil reads correctly (it was showing its back face = mirrored text).
     p.rotation.y = rotY + Math.PI;
     tag(p);
+    return tex;
   };
 
   // -- WALL / FLOOR / CEILING SKINS ----------------------------------------
@@ -394,11 +400,20 @@ export function createDressing(
   // Orient each label so its readable face points into the room (same rotation
   // convention as the wall panel each one sits on, so the stencil text is not
   // mirrored).
-  labelPlane("dr_lblModule", "MODULE 7", "SECT. A", 2.4, 1.2, ix - 0.04, 1.9, 4, -Math.PI / 2);
-  labelPlane("dr_lblBay", "BAY 02", "", 1.8, 0.9, -ix + 0.04, 2.1, -4, Math.PI / 2);
-  labelPlane("dr_lblExit", "EXIT", "AIRLOCK 7", 2.0, 1.0, -4.5, 4.4, iz - 0.04, Math.PI);
+  // The text is per-room (see levels.ts); these are the "none"-room defaults
+  // until setLabels() repaints them. EXIT sits up and right of the exit door
+  // (world/door.ts), clear of the puzzle panels flanking it.
+  const initial = wallLabelsFor("none");
+  const lblModule = labelPlane("dr_lblModule", ...initial.module, 2.4, 1.2, ix - 0.04, 1.9, 4, -Math.PI / 2);
+  const lblBay = labelPlane("dr_lblBay", ...initial.bay, 1.8, 0.9, -ix + 0.04, 2.1, -4, Math.PI / 2);
+  const lblExit = labelPlane("dr_lblExit", ...initial.exit, 2.0, 1.0, 3.4, 3.6, iz - 0.04, Math.PI);
 
   return {
+    setLabels(l: WallLabels): void {
+      drawLabel(lblModule, ...l.module);
+      drawLabel(lblBay, ...l.bay);
+      drawLabel(lblExit, ...l.exit);
+    },
     dispose(): void {
       for (const m of meshes) {
         const mat = m.material;
