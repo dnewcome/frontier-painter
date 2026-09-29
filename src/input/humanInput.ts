@@ -10,7 +10,8 @@
 //   - BOOTED (boots on, magnetic walk):
 //       WASD / stick = tangential walk intent. Space / action = push off.
 //   - Mouse move or right-thumb drag = look (mouse/finger up -> look up).
-//   - B: boots · C: camera · R: reset · P: next room · 1/2/3: brush property ·
+//   - B: boots · R: reset · 1/2/3: brush property · (C: camera, P: next room
+//     only with ?debug=1) ·
 //     F: paint at the crosshair (desktop) / tap a surface (touch).
 //   - Left-drag (desktop, floating, pointer released): legacy free-hand draw.
 //
@@ -28,7 +29,7 @@ import type { PaintField } from "../paint/paintField";
 import type { CameraRig } from "../core/camera";
 import type { GameEngine } from "../core/engine";
 import { PAINT_PALETTE, type CameraMode, type PaintProperty, type SimConfig } from "../types";
-import { isTouchDevice } from "./device";
+import { isDebug, isTouchDevice } from "./device";
 
 export interface HumanInputDeps {
   scene: Scene;
@@ -196,11 +197,9 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
 
   const action = (): void => {
     if (player.isBooted()) {
-      const f = player.getForward();
-      player.pushOff(config.pushOffSpeed);
-      keepViewFloating(f);
-      syncDrawing();
-      updateHint();
+      // Boots-on jump: stay magnetized and fly to the nearest surface (no-op
+      // while already in the air). Turn the boots OFF to float free.
+      player.hop();
     } else {
       toggleGrab();
     }
@@ -245,6 +244,7 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
     paintAtCanvasPoint(rect.width / 2, rect.height / 2);
   };
 
+  const debug = isDebug();
   window.addEventListener("keydown", (e) => {
     if (!e.repeat) {
       switch (e.code) {
@@ -257,8 +257,8 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
         case "KeyG":
           toggleGrab();
           break;
-        case "KeyC":
-          toggleCamera();
+        case "KeyC": // developer: demo <-> first-person camera
+          if (debug) toggleCamera();
           break;
         case "KeyR":
           reset();
@@ -275,8 +275,8 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
         case "KeyF":
           paintAtCrosshair();
           break;
-        case "KeyP":
-          deps.cycleScenario();
+        case "KeyP": // developer: skip to the next room
+          if (debug) deps.cycleScenario();
           break;
       }
     }

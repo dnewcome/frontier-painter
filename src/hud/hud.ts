@@ -125,7 +125,7 @@ class HudImpl implements Hud {
       ...paintLines,
       `handholds: ${state.handholds.length}   ${goalLine}`,
       `elapsed: ${state.elapsed.toFixed(2)}s`,
-      "controls: 1/2/3 color · F paint · P room · B boots · WASD move · mouse look · Space grab/jump · C cam · R reset",
+      "controls: 1/2/3 color · F paint · B boots · WASD move · mouse look · Space grab/jump · R reset",
     ];
 
     const text = lines.join("\n");

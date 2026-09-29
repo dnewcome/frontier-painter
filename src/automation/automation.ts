@@ -180,6 +180,10 @@ class AutomationImpl implements GameApi {
     this.deps.player.pushOff(speed);
   }
 
+  hop(speed?: number): void {
+    this.deps.player.hop(speed);
+  }
+
   // ---- property painting ----
 
   loadScenario(name: ScenarioName): void {
@@ -242,6 +246,7 @@ class AutomationImpl implements GameApi {
       cameraMode: camera.getMode(),
       elapsed: this.elapsed,
       booted: player.isBooted(),
+      airborne: player.isAirborne(),
       surfaceNormal: player.getSurfaceNormal(),
       up: player.getUp(),
       facing: player.getFacing(),

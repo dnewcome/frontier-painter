@@ -76,6 +76,8 @@ export interface GameState {
   // ---- magnetic boots (additive; default values reported while floating) ----
   /** True while the player is planted/walking on a surface. */
   booted: boolean;
+  /** True while boots are on but the player is mid-hop (magnetic gravity). */
+  airborne: boolean;
   /** Logical "up" == current surface inward normal; [0,1,0] when floating. */
   surfaceNormal: Vec3;
   /** Rendered/smoothed camera up (tweened across transitions); [0,1,0] when floating. */
@@ -137,6 +139,12 @@ export interface SimConfig {
   reEngageDistance: number;
   /** Default push-off impulse (m/s) when detaching from a surface. */
   pushOffSpeed: number;
+  /** Boots-on jump speed (m/s) off the surface (see Player.hop). */
+  hopSpeed: number;
+  /** Magnetic gravity (m/s^2) toward the nearest surface while boots are on. */
+  magGravity: number;
+  /** In-air steering acceleration (m/s^2) from walk input mid-hop. */
+  airControl: number;
   // ---- property painting (additive) ----
   /** Max distance (m) at which a human aim-ray will paint a broken surface. */
   paintReach: number;
@@ -160,5 +168,11 @@ export const DEFAULT_CONFIG: SimConfig = {
   surfaceTweenSteps: 18, // ~0.3 s at 1/60
   reEngageDistance: 1.5,
   pushOffSpeed: 3.0,
+  // A straight-up hop rises ~2.5 m: past the room's midline, so a jump off the
+  // floor lands you on the ceiling (and vice versa). Tangential walk speed
+  // carries into the hop, so a running jump near a wall lands on that wall.
+  hopSpeed: 5.5,
+  magGravity: 6.0,
+  airControl: 3.0,
   paintReach: 12,
 };

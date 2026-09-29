@@ -16,6 +16,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import { Capacitor } from "@capacitor/core";
 import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
 import type { HumanControls, PaintResult } from "./humanInput";
+import { isDebug } from "./device";
 import { PAINT_PALETTE, type GameState, type PaintProperty } from "../types";
 
 export interface TouchInputDeps {
@@ -365,9 +366,11 @@ export function createTouchInput(deps: TouchInputDeps): void {
   const menuBtn = el("button", "t-menu-btn", root, "☰");
   menuBtn.setAttribute("aria-label", "Menu");
   const menu = el("div", "t-menu", root);
-  const mNext = el("button", "", menu, "▶  Next room");
   const mReset = el("button", "", menu, "↺  Restart room");
-  const mCam = el("button", "", menu, "🎥  Camera: first-person");
+  // Room skip + camera toggle are developer tools (?debug=1 only).
+  const debug = isDebug();
+  const mNext = debug ? el("button", "", menu, "▶  Next room (debug)") : null;
+  const mCam = debug ? el("button", "", menu, "🎥  Camera toggle (debug)") : null;
   const mGyro = el("button", "", menu, "🧭  Gyro look: off");
   if (!NATIVE) {
     el("div", "tip", menu, "Tip: Share → Add to Home Screen to play fullscreen.");
@@ -376,7 +379,7 @@ export function createTouchInput(deps: TouchInputDeps): void {
   // activation iOS requires for the motion-permission prompt).
   menuBtn.addEventListener("click", () => menu.classList.toggle("open"));
   const closeMenu = (): void => menu.classList.remove("open");
-  mNext.addEventListener("click", () => {
+  mNext?.addEventListener("click", () => {
     deps.cycleScenario();
     closeMenu();
   });
@@ -384,7 +387,7 @@ export function createTouchInput(deps: TouchInputDeps): void {
     deps.reset();
     closeMenu();
   });
-  mCam.addEventListener("click", () => {
+  mCam?.addEventListener("click", () => {
     controls.toggleCamera();
     closeMenu();
   });
@@ -511,7 +514,7 @@ export function createTouchInput(deps: TouchInputDeps): void {
       bootsBtn.classList.toggle("on", s.booted);
       bootsBtn.textContent = s.booted ? "BOOTS ON" : "BOOTS";
     }
-    const act = s.booted ? "JUMP" : s.grabbing ? "RELEASE" : "GRAB";
+    const act = s.booted ? (s.airborne ? "IN AIR" : "JUMP") : s.grabbing ? "RELEASE" : "GRAB";
     if (act !== lastAction) {
       lastAction = act;
       actionBtn.textContent = act;

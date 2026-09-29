@@ -9,7 +9,10 @@
 // surface inward normal) and walks the tangent plane, transitioning across 90
 // degree edges onto adjacent surfaces. Detaching hands the tangential walk
 // velocity back to the free-float integrator so the existing
-// draw -> grab -> pull -> goal -> win loop keeps working. All boots state
+// draw -> grab -> pull -> goal -> win loop keeps working. A boots-on jump
+// (hop) keeps the boots engaged: the player flies under MAGNETIC GRAVITY toward
+// whichever surface is nearest, the view re-rights to that surface, and they
+// land and plant on it (floor -> ceiling, or onto an adjacent wall). All boots state
 // advances ONLY inside fixedUpdate(dt) (and intent setters that merely store
 // values), so determinism is preserved: no Math.random / Date.now /
 // performance.now anywhere here.
@@ -35,8 +38,16 @@ import {
   projectToTangent,
   refTangent,
   replant,
+  reorientQuat,
+  SURFACES,
   type Surface,
 } from "./surfaceFrame";
+
+/** A new surface must be this much (m) nearer than the current gravity surface
+ *  before gravity switches to it mid-hop, so it can't flicker at the midpoint. */
+const MAG_SWITCH_MARGIN = 0.25;
+/** Speed cap while flying under magnetic gravity (m/s). */
+const MAG_MAX_SPEED = 9;
 
 export interface Player {
   /** Per-fixed-step integration (registered as a core FixedStepHook). */
@@ -59,9 +70,10 @@ export interface Player {
   reset(): void;
 
   // ---- magnetic boots ----
-  /** Plant on / detach from a surface. Plant snaps to the nearest surface (up =
-   *  its normal) within reEngageDistance, zeroing velocity. Detach hands the
-   *  current tangential walk velocity to the float integrator. No wall-clock. */
+  /** Boots on / off. On: plant on the nearest surface if within
+   *  reEngageDistance (zeroing velocity), otherwise stay in the air but
+   *  magnetized — falling toward the nearest surface. Off: detach into free
+   *  float, keeping the walk (or in-air) velocity. No wall-clock. */
   setBooted(on: boolean): void;
   isBooted(): boolean;
   /** Persistent walk intent in [-1,1] (like held keys); consumed each step. */
@@ -75,6 +87,12 @@ export interface Player {
   setFacing(yaw: number, pitch?: number): void;
   /** Detach + impulse `speed` along the current surface normal (jump off). */
   pushOff(speed: number): void;
+  /** Boots-on jump: leave the surface at `speed` (default config.hopSpeed)
+   *  along its normal, carrying the walk velocity, while STAYING magnetized —
+   *  magnetic gravity pulls toward the nearest surface and you land on it. */
+  hop(speed?: number): void;
+  /** True while boots are on but the player is in the air (mid-hop). */
+  isAirborne(): boolean;
   /** Camera up: qRender·(0,1,0) booted (tweened), else [0,1,0]. */
   getUp(): Vec3;
   /** Logical current surface inward normal when booted, else [0,1,0]. */
@@ -105,6 +123,8 @@ class PlayerImpl implements Player {
 
   // ---- boots state ----
   private booted = false;
+  /** Boots on but mid-air (a hop): magnetic gravity toward plant.surface. */
+  private airborne = false;
   private plant: PlantState = {
     surface: surfaceById("floor"),
     facing: [0, 0, 1],
@@ -162,7 +182,8 @@ class PlayerImpl implements Player {
 
   fixedUpdate(dt: number): void {
     if (this.booted) {
-      this.stepBooted(dt);
+      if (this.airborne) this.stepMagAir(dt);
+      else this.stepBooted(dt);
       return;
     }
     // ---- float path (unchanged) ----
@@ -201,6 +222,83 @@ class PlayerImpl implements Player {
     this.plant = plant;
     if (reorient) this.beginTween();
     this.updateRender();
+  }
+
+  /** One airborne boots step: pick the gravity surface (nearest, with
+   *  hysteresis), apply magnetic gravity + light air control, move, contain
+   *  inside the box, and land (re-plant) on touching down. */
+  private stepMagAir(dt: number): void {
+    const pos = this.getPosition();
+    const cur = this.plant.surface;
+    const near = nearestSurface(pos);
+    const dCur = Math.abs(pos[cur.axis] - cur.planeValue);
+    if (near.surface !== cur && near.dist < dCur - MAG_SWITCH_MARGIN) {
+      this.switchGravity(near.surface);
+    }
+
+    const s = this.plant.surface;
+    const n = s.normal;
+    const f = this.plant.facing;
+    const r = tangentRight(n, f);
+    const v = this.velocity;
+    const air = this.config.airControl * dt;
+    const g = this.config.magGravity * dt;
+    for (let i = 0; i < 3; i++) {
+      v[i] += (f[i] * this.moveF + r[i] * this.moveS) * air - n[i] * g;
+    }
+    const sp = Math.hypot(v[0], v[1], v[2]);
+    if (sp > MAG_MAX_SPEED) {
+      const k = MAG_MAX_SPEED / sp;
+      v[0] *= k;
+      v[1] *= k;
+      v[2] *= k;
+    }
+
+    const p: Vec3 = [pos[0] + v[0] * dt, pos[1] + v[1] * dt, pos[2] + v[2] * dt];
+    const height = (p[s.axis] - s.planeValue) * s.inwardSign;
+    if (height <= this.boots.standHeight && dot(v, n) <= 0) {
+      // Touchdown: plant on the gravity surface (unfolding if past an edge).
+      const res = replant(p, s, this.plant.facing, this.boots.standHeight, this.inset);
+      this.mesh.position.set(res.center[0], res.center[1], res.center[2]);
+      this.mesh.computeWorldMatrix(true);
+      this.plant = { surface: res.surface, facing: res.facing, pitch: this.plant.pitch };
+      if (res.reorient) this.beginTween();
+      this.airborne = false;
+      this.velocity = [0, 0, 0];
+      this.walkVelocity = [0, 0, 0];
+      this.updateRender();
+      return;
+    }
+    // Keep clear of every other face (the same inset a planted player keeps).
+    for (const o of SURFACES) {
+      if (o === s) continue;
+      const d = (p[o.axis] - o.planeValue) * o.inwardSign;
+      if (d < this.inset) {
+        p[o.axis] = o.planeValue + o.inwardSign * this.inset;
+        if (dot(v, o.normal) < 0) v[o.axis] = 0;
+      }
+    }
+    this.mesh.position.set(p[0], p[1], p[2]);
+    this.mesh.computeWorldMatrix(true);
+    this.updateRender();
+  }
+
+  /** Mid-air: make `next` the gravity surface, re-deriving facing so the view
+   *  turns with it (roll over for the opposite face), and tween the camera. */
+  private switchGravity(next: Surface): void {
+    const from = this.plant.surface.normal;
+    const to = next.normal;
+    let f = this.plant.facing;
+    if (dot(from, to) > -0.5) {
+      const fv = new Vector3(f[0], f[1], f[2]).applyRotationQuaternion(reorientQuat(from, to));
+      f = [fv.x, fv.y, fv.z];
+    }
+    this.plant = {
+      surface: next,
+      facing: normOr(projectToTangent(f, to), refTangent(next)),
+      pitch: this.plant.pitch,
+    };
+    this.beginTween();
   }
 
   /** Steer facing toward the active auto-walk target along the tangent plane. */
@@ -445,10 +543,14 @@ class PlayerImpl implements Player {
       if (this.booted) return;
       const pos = this.getPosition();
       const near = nearestSurface(pos);
-      // Only plant if close enough to a surface plane.
-      if (near.dist > this.boots.reEngageDistance) return;
       if (this.grabbing) this.release();
-      this.plantOn(near.surface);
+      if (near.dist <= this.boots.reEngageDistance) {
+        this.plantOn(near.surface);
+        return;
+      }
+      // Too far to plant: magnetize in the air and fall toward that surface,
+      // keeping the current drift and (roughly) the current view.
+      this.magnetizeInAir(near.surface);
     } else {
       if (!this.booted) return;
       this.detach();
@@ -487,15 +589,51 @@ class PlayerImpl implements Player {
     this.updateRender();
   }
 
-  /** Detach into free-float, handing the last tangential velocity to the float
-   *  integrator. */
+  /** Boots on while floating far from any surface: become airborne-booted. */
+  private magnetizeInAir(surface: Surface): void {
+    const n = surface.normal;
+    const fw = this.forward;
+    this.setRenderFromFloat();
+    this.booted = true;
+    this.airborne = true;
+    this.walkTarget = null;
+    const c = this.boots.pitchClamp;
+    // Booted +pitch tilts DOWN (toward -n), so a view with +n component = -pitch.
+    const pitch = Math.max(-c, Math.min(c, -Math.asin(Math.max(-1, Math.min(1, dot(fw, n))))));
+    this.plant = {
+      surface,
+      facing: normOr(projectToTangent(fw, n), refTangent(surface)),
+      pitch,
+    };
+    this.beginTween();
+    this.updateRender();
+  }
+
+  /** Seed qRender from the free-float view (forward, world up) so a switch
+   *  into a booted view tweens from what the player was actually seeing. */
+  private setRenderFromFloat(): void {
+    const fw = this.forward;
+    const r = normOr(tangentRight([0, 1, 0], fw), [1, 0, 0]);
+    const up = cross(fw, r);
+    this._rightV.set(r[0], r[1], r[2]);
+    this._upV.set(up[0], up[1], up[2]);
+    this._fwdV.set(fw[0], fw[1], fw[2]);
+    Quaternion.RotationQuaternionFromAxisToRef(this._rightV, this._upV, this._fwdV, this.qRender);
+  }
+
+  /** Detach into free-float, handing the last tangential velocity (or, mid-hop,
+   *  the in-air velocity) to the float integrator. */
   private detach(): void {
     this.booted = false;
-    this.velocity = [
-      this.walkVelocity[0],
-      this.walkVelocity[1],
-      this.walkVelocity[2],
-    ];
+    if (this.airborne) {
+      this.airborne = false;
+    } else {
+      this.velocity = [
+        this.walkVelocity[0],
+        this.walkVelocity[1],
+        this.walkVelocity[2],
+      ];
+    }
     this.moveF = 0;
     this.moveS = 0;
     this.walkTarget = null;
@@ -554,7 +692,7 @@ class PlayerImpl implements Player {
   }
 
   pushOff(speed: number): void {
-    if (!this.booted) return;
+    if (!this.booted || this.airborne) return;
     const n = this.plant.surface.normal;
     this.detach();
     this.velocity[0] += n[0] * speed;
@@ -568,6 +706,23 @@ class PlayerImpl implements Player {
         this.velocity[2] / sp,
       ];
     }
+  }
+
+  hop(speed?: number): void {
+    if (!this.booted || this.airborne) return;
+    const n = this.plant.surface.normal;
+    const s = speed ?? this.config.hopSpeed;
+    this.velocity = [
+      this.walkVelocity[0] + n[0] * s,
+      this.walkVelocity[1] + n[1] * s,
+      this.walkVelocity[2] + n[2] * s,
+    ];
+    this.walkTarget = null;
+    this.airborne = true;
+  }
+
+  isAirborne(): boolean {
+    return this.airborne;
   }
 
   /** Orient `forward` down the grabbed tube toward its far (increasing-t) end. */
@@ -614,6 +769,7 @@ class PlayerImpl implements Player {
 
     // Clear boots -> floating, up = [0,1,0], facing = [0,0,1].
     this.booted = false;
+    this.airborne = false;
     this.moveF = 0;
     this.moveS = 0;
     this.walkTarget = null;

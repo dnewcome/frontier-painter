@@ -8,7 +8,10 @@ colors, it's *physics* — paint a dead rail `cold` and it frosts into a grabbab
 **handhold**, paint a dead conduit `conductive` and it re-powers a door. Each
 broken surface takes exactly **one** correct property ("right property, right
 place") — the puzzle is deducing which. **Magnetic boots** let you walk across
-any surface — floor, walls, ceiling — and release to float and paint.
+any surface — floor, walls, ceiling. Jumping with the boots on keeps you
+magnetized: gravity pulls you toward the **nearest** surface, so a hop off the
+floor lands you on the ceiling, and a running jump near a wall lands you on the
+wall. Turn the boots off to float free.
 
 Built with **TypeScript + Vite + Babylon.js**. Movement is a **custom kinematic
 zero-g controller** (velocity + damping, no gravity) with **analytic room
@@ -39,9 +42,10 @@ push to `main`.
 - **Right thumb** — drag to look (finger up → look up)
 - **Tap a broken surface** — paint it with the selected property
 - **Palette** (top-left) — cold · conductive · magnetic
-- **BOOTS** / **GRAB·JUMP** (bottom-right) — mag boots, grab a rail / push off
-- **☰ menu** — next room, restart, camera, optional **gyro look** (turn the
-  phone to look around; needs the HTTPS link)
+- **BOOTS** / **GRAB·JUMP** (bottom-right) — mag boots on/off; grab a rail, or
+  jump while booted
+- **☰ menu** — restart room, optional **gyro look** (turn the phone to look
+  around; needs the HTTPS link)
 
 The phone HUD describes each broken surface by its **symptom** ("Overheated —
 too hot to grip") rather than the answer — diagnosing the fix is the puzzle.
@@ -50,19 +54,23 @@ too hot to grip") rather than the answer — diagnosing the fix is the puzzle.
 
 - **1 / 2 / 3** — select brush property: cold · conductive · magnetic
 - **F** — paint the broken surface at the crosshair with the selected property
-- **P** — switch room (Frost Gap ⇄ Cross-Wired Junction)
 - **B** — toggle magnetic boots (plant / float). First-person while booted.
 - **WASD** — walk + strafe (booted) / thrust (floating)
 - **Mouse** — look (floating *and* booted). Vertical look is inverted (mouse up →
   look up). **Click the view to capture the cursor** so it can't leave the
   window; **Esc** releases it.
-- **Space** — push off a surface (booted) / grab–release a handhold (floating)
+- **Space** — boots on: **jump** (stay magnetized, land on the nearest surface)
+  / boots off: grab–release a handhold
 - **Left-drag** (floating, first-person, cursor released) — draw a stroke (legacy
   handhold verb)
-- **C** — toggle demo / first-person camera · **R** — reset
+- **R** — reset the room
 
-Headed play boots straight into the **Frost Gap** paint puzzle; press **P** to
-switch to the **Cross-Wired Junction**. The palette + a per-surface repair
+**Developer controls** (open the page with `?debug=1`): **P** skips to the
+next room and **C** toggles the demo / first-person camera; the phone menu gains
+the same two items.
+
+Headed play boots straight into the **Frost Gap** paint puzzle; clear it and go
+through the exit door to reach the **Cross-Wired Junction**. The palette + a per-surface repair
 checklist show in the HUD; the console won't power until every broken surface is
 repaired. Once the console is online, the **exit door** behind it slides open
 (red → green light); float or walk through it to go to the next room. Each

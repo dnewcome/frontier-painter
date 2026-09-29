@@ -82,6 +82,8 @@ export interface GameApi {
 
   /** Detach + impulse `speed` (m/s) along the current surface normal (jump off). */
   pushOff(speed: number): void;
+  /** Boots-on jump that stays magnetized (lands on the nearest surface). */
+  hop(speed?: number): void;
 
   // ---- property painting (additive; existing methods unchanged) ----
 

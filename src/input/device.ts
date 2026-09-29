@@ -17,3 +17,9 @@ export function isTouchDevice(): boolean {
   cached = coarse || (navigator.maxTouchPoints ?? 0) > 0;
   return cached;
 }
+
+/** Developer controls (room skip, camera toggle) are hidden unless the page is
+ *  opened with ?debug=1. */
+export function isDebug(): boolean {
+  return new URLSearchParams(window.location.search).get("debug") === "1";
+}

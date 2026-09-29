@@ -134,3 +134,17 @@ test("phone: BOOTS button plants you; action button becomes JUMP", async ({ page
   await expect(page.locator('.t-btn[data-role="boots"]')).toHaveText("BOOTS ON");
   expect(errors).toEqual([]);
 });
+
+test("phone: menu has no room-skip / camera items unless ?debug=1", async ({ page }) => {
+  await boot(page);
+  await page.getByRole("button", { name: "Menu" }).tap();
+  await expect(page.getByRole("button", { name: /Restart room/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Next room/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Camera/ })).toHaveCount(0);
+
+  await page.goto("/?debug=1");
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
+  await page.getByRole("button", { name: "Menu" }).tap();
+  await expect(page.getByRole("button", { name: /Next room/ })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /Camera/ })).toHaveCount(1);
+});

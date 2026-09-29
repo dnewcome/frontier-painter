@@ -96,3 +96,26 @@ test("desktop: nudging the mouse after planting boots doesn't snap the view", as
   expect(Math.abs(after[0])).toBeLessThan(0.2);
   expect(errors).toEqual([]);
 });
+
+test("desktop: room-skip (P) and camera (C) keys are debug-only", async ({ page }) => {
+  const snap = () =>
+    page.evaluate(() => {
+      const s = window.game.getState();
+      return [s.scenario, s.cameraMode];
+    });
+  await page.goto("/");
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
+  const before = await snap();
+  await page.keyboard.press("KeyP");
+  await page.keyboard.press("KeyC");
+  expect(await snap()).toEqual(before);
+
+  await page.goto("/?debug=1");
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
+  const [room0, cam0] = await snap();
+  await page.keyboard.press("KeyP");
+  await page.keyboard.press("KeyC");
+  const [room1, cam1] = await snap();
+  expect(room1).not.toBe(room0);
+  expect(cam1).not.toBe(cam0);
+});
