@@ -11,7 +11,7 @@ async function boot(page: Page): Promise<string[]> {
   const errors: string[] = [];
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("pageerror", (e) => errors.push(String(e)));
-  await page.goto("/");
+  await page.goto("/?room=frostgap");
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
   return errors;
 }

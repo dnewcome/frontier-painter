@@ -53,8 +53,10 @@ const OUT = [
   ["ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png", 1024],
 ];
 
-// iOS launch screen: dark field with the icon glyph centered (the storyboard
-// aspect-fills this 2732x2732 image, so keep the art inside the middle third).
+// iOS launch screen: dark field with the icon glyph + FRONTIER PAINTER
+// wordmark (matching the in-game title screen). The storyboard aspect-fills
+// this 2732x2732 image, so on a landscape phone only a ~1260 px band through
+// the middle shows: keep everything inside it.
 const SPLASH_SIZE = 2732;
 const SPLASH_OUT = [
   "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png",
@@ -78,8 +80,14 @@ try {
     deviceScaleFactor: 1,
   });
   await page.setContent(
-    `<html><body style="margin:0;background:#05080f;display:flex;align-items:center;justify-content:center;height:100vh">` +
-      `<div style="width:560px;height:560px;border-radius:124px;overflow:hidden">${SVG}</div></body></html>`,
+    `<html><body style="margin:0;background:radial-gradient(ellipse at 50% 45%,#0b1628,#05080f 60%);` +
+      `display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:44px;` +
+      `font-family:'DejaVu Sans Mono',ui-monospace,monospace;color:#e8f2ff">` +
+      `<div style="width:330px;height:330px;border-radius:74px;overflow:hidden">${SVG}</div>` +
+      `<div style="text-align:center;font-weight:800;font-size:150px;line-height:0.95;letter-spacing:0.14em;` +
+      `text-shadow:0 0 40px rgba(140,217,255,0.35)">FRONTIER` +
+      `<div style="font-size:92px;letter-spacing:0.34em;margin-top:18px;background:linear-gradient(90deg,#8cd9ff,#ffa829 55%,#b86bff);` +
+      `-webkit-background-clip:text;background-clip:text;color:transparent">PAINTER</div></div></body></html>`,
   );
   for (const file of SPLASH_OUT) {
     await page.screenshot({ path: path.join(ROOT, file) });

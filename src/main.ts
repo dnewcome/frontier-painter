@@ -27,6 +27,8 @@ import { createExitCue } from "./hud/exitCue";
 import { createPaintTrace } from "./input/paintTrace";
 import { LEVELS, asRoom, levelNumber, nextLevel } from "./levels";
 import { createObjectives } from "./tutorial/objectives";
+import { createAudio } from "./audio/audio";
+import { showTitle } from "./hud/title";
 
 function boot(): void {
   const canvas = document.getElementById("renderCanvas");
@@ -77,6 +79,15 @@ function boot(): void {
   const hud = createHud(hudRoot, { compact: touch });
 
   const objectives = createObjectives(game.scene, drawing.registry, touch);
+  // Synthesized music + sfx (audio/audio.ts). Browsers need a user gesture
+  // first: the title screen's button, or any first touch/key when it's skipped.
+  const audio = createAudio();
+  const unlockOnce = (): void => audio.unlock();
+  window.addEventListener("pointerdown", unlockOnce, { once: true, capture: true });
+  window.addEventListener("keydown", unlockOnce, { once: true, capture: true });
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "KeyM" && !e.repeat) audio.setMusic(!audio.musicOn());
+  });
 
   const api = createAutomation({
     engine: game,
@@ -112,6 +123,38 @@ function boot(): void {
   const startRoom =
     asRoom(new URLSearchParams(window.location.search).get("room")) ?? asRoom(saved) ?? LEVELS[0].id;
   api.loadScenario(startRoom);
+
+  // Title screen on every normal launch (a ?room= dev/test link skips it;
+  // ?title=1 forces it).
+  const q = new URLSearchParams(window.location.search);
+  if (q.get("title") === "1" || !q.has("room")) {
+    const idx = LEVELS.findIndex((l) => l.id === startRoom);
+    showTitle({
+      resumeLabel: idx > 0 ? `Room ${idx + 1} · ${LEVELS[idx].title}` : null,
+      newGame: () => {
+        api.loadScenario(LEVELS[0].id);
+        saveRoom(LEVELS[0].id);
+      },
+      musicOn: () => audio.musicOn(),
+      setMusic: (on) => audio.setMusic(on),
+      onStart: () => audio.unlock(),
+    });
+  }
+
+  // Sound cues from state changes (visual/audio only; never touches the sim).
+  let prevAudio = { key: "", door: false, planted: false, air: false };
+  game.scene.onBeforeRenderObservable.add(() => {
+    const s = api.getState();
+    const key = `${s.scenario}:${s.objective?.step ?? "done"}`;
+    const planted = s.booted && !s.airborne;
+    if (prevAudio.key && key !== prevAudio.key && prevAudio.key.split(":")[0] === s.scenario) {
+      audio.play("tick");
+    }
+    if (s.doorOpen && !prevAudio.door && prevAudio.key.split(":")[0] === s.scenario) audio.play("door");
+    if (planted && !prevAudio.planted) audio.play("boots");
+    if (s.airborne && !prevAudio.air) audio.play("hop");
+    prevAudio = { key, door: s.doorOpen, planted, air: s.airborne };
+  });
 
   // Real human controls for headed play (keyboard thrust/walk + boots + grab +
   // camera + draw). Boots default OFF (player.reset() spawns floating), so the
@@ -150,9 +193,11 @@ function boot(): void {
   const requestPaint = (id: string): void => {
     const surf = surfaceOf(id);
     if (!surf || trace.isOpen()) return;
-    trace.open(api.getState().selectedColor, surf.label, api.projectToScreen(surf.anchor), () =>
-      controls.paintSurface(id),
-    );
+    trace.open(api.getState().selectedColor, surf.label, api.projectToScreen(surf.anchor), () => {
+      const outcome = controls.paintSurface(id);
+      audio.play(outcome === "repaired" ? "repaired" : "rejected");
+      return outcome;
+    });
   };
 
   const controls = createHumanInput({
@@ -186,6 +231,8 @@ function boot(): void {
       selectColor: (c) => api.selectColor(c),
       cycleScenario,
       reset: () => api.reset(),
+      musicOn: () => audio.musicOn(),
+      setMusic: (on: boolean) => audio.setMusic(on),
       replayTutorial: () =>
         transition.play(`ROOM 1 · ${LEVELS[0].sector}`, LEVELS[0].title.toUpperCase(), () =>
           enterRoom(LEVELS[0].id),

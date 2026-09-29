@@ -108,6 +108,20 @@ repaired):
   is repaired is rejected as inaccessible — "right property, right place, right
   **order**".
 
+## Title screen, music, App Store
+
+Every launch opens on a title screen (Continue / New game / Music) over the
+live room; its tap also unlocks audio (iOS requires a gesture). Music and sound
+effects are **synthesized live with Web Audio** (`src/audio/audio.ts`) — a
+generative ambient score plus short cues — so there are no audio files to ship
+or license. **M** toggles music on desktop; the phone menu has a toggle.
+
+The App Store listing lives in `ios/appstore/` (`metadata/*.txt`,
+`screenshots/{iphone-6.9,ipad-13}/`). Screenshots are rendered from the real
+game at Apple's exact sizes: `npm run build && npm run preview & npm run screenshots`.
+Privacy policy and support pages are `public/privacy.html` / `public/support.html`
+(served by GitHub Pages).
+
 ## Quick start
 
 ```bash

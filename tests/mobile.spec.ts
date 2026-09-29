@@ -27,8 +27,6 @@ async function boot(page: Page): Promise<string[]> {
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, {
     timeout: 30_000,
   });
-  // Dismiss the first-run how-to card.
-  await page.getByRole("button", { name: "Start" }).tap();
   return errors;
 }
 
@@ -243,5 +241,36 @@ test("phone: stuck-stick guards — left touches always drive the stick, look on
   await T("touchEnd", []);
   expect(Math.abs((await yaw()) - y1)).toBeLessThan(1e-6);
   await c.detach();
+  expect(errors).toEqual([]);
+});
+
+test("title screen: shown on launch, Start dismisses it; with progress it offers Continue + New game", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.goto("/");
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
+  await expect(page.locator("#title .mark")).toContainText("FRONTIER");
+  await expect(page.locator("#title button.go")).toHaveText("Start"); // fresh: no progress
+  await expect(page.locator("#title button.music")).toContainText("Music: On");
+  await page.locator("#title button.music").tap();
+  await expect(page.locator("#title button.music")).toContainText("Music: Off");
+  await page.locator("#title button.go").tap();
+  await expect(page.locator("#title")).toHaveCount(0);
+  expect(await page.evaluate(() => window.game.getState().scenario)).toBe("wakeup");
+  // The menu remembers the music setting.
+  await page.getByRole("button", { name: "Menu" }).tap();
+  await expect(page.getByRole("button", { name: /Music: off/ })).toBeVisible();
+
+  // With saved progress: Continue names the room; New game restarts the tutorial.
+  await page.evaluate(() => localStorage.setItem("fp_room", "boots"));
+  await page.goto("/");
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
+  await expect(page.locator("#title button.go")).toContainText("Continue");
+  await expect(page.locator("#title button.go")).toContainText("Room 3 · Mag Boots");
+  expect(await page.evaluate(() => window.game.getState().scenario)).toBe("boots");
+  await page.locator("#title button.new").tap();
+  await expect(page.locator("#title")).toHaveCount(0);
+  expect(await page.evaluate(() => window.game.getState().scenario)).toBe("wakeup");
+  expect(await page.evaluate(() => localStorage.getItem("fp_room"))).toBe("wakeup");
   expect(errors).toEqual([]);
 });

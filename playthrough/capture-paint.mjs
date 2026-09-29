@@ -149,7 +149,7 @@ async function main() {
 
   try {
     // -- 01 arrive: broken room -------------------------------------------
-    await page.goto(BASE_URL, { waitUntil: "load" });
+    await page.goto(`${BASE_URL}/?room=frostgap`, { waitUntil: "load" }); // ?room= skips the title screen
     await page.waitForFunction(
       () => !!window.game && window.game.isReady(),
       null,

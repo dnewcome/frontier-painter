@@ -157,13 +157,14 @@ async function main() {
   let won = false;
   try {
     // 01 first-run card
-    await page.goto(`${BASE_URL}/?room=frostgap`, { waitUntil: "load" });
+    await page.goto(`${BASE_URL}/?room=frostgap&title=1`, { waitUntil: "load" });
     await page.waitForFunction(() => window.game && window.game.isReady(), null, { timeout: 30_000 });
-    await page.getByRole("button", { name: "Start" }).waitFor();
-    await shot("intro");
+    await page.locator("#title button.go").waitFor();
+    await shot("title");
 
     // 02 the room, phone UI
-    await page.getByRole("button", { name: "Start" }).tap();
+    await page.locator("#title button.go").tap();
+    await page.locator("#title").waitFor({ state: "detached" });
     await shot("phone-ui");
 
     // 03 wrong property: the rail is in reach (PAINT), trace CONDUCTIVE -> rejected

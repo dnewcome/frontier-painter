@@ -198,7 +198,7 @@ async function main() {
     // -- 01 ready ----------------------------------------------------------
     // Load the app and wait for the GPU pipeline to be live (engine + scene up,
     // first frame rendered). Frame the room from the tracking 'demo' camera.
-    await page.goto(BASE_URL, { waitUntil: "load" });
+    await page.goto(`${BASE_URL}/?room=frostgap`, { waitUntil: "load" }); // ?room= skips the title screen
     await page.waitForFunction(
       () => !!window.game && window.game.isReady(),
       null,

@@ -67,6 +67,8 @@
 	<true/>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<key>NSMotionUsageDescription</key>
+	<string>Optional gyro look: turn your device to look around. Only used if you switch it on in the menu.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>

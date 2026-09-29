@@ -130,7 +130,7 @@ async function main() {
 
   try {
     // -- 01 arrive: only the shroud is visible -----------------------------
-    await page.goto(BASE_URL, { waitUntil: "load" });
+    await page.goto(`${BASE_URL}/?room=frostgap`, { waitUntil: "load" }); // ?room= skips the title screen
     await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
     const s1 = await page.evaluate(() => {
       const g = window.game;

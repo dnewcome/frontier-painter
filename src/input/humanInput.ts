@@ -128,6 +128,7 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
 
   // ---- desktop affordances: capture hint + crosshair (hidden on touch) ------
   const hint = document.createElement("div");
+  hint.id = "pointer-hint";
   hint.textContent = "🖱  Click the view to capture the mouse  ·  Esc to release";
   hint.style.cssText =
     "position:fixed;left:50%;bottom:18px;transform:translateX(-50%);" +
@@ -138,6 +139,7 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
 
   // Aiming crosshair (screen center) — where F paints on desktop.
   const crosshair = document.createElement("div");
+  crosshair.id = "crosshair";
   crosshair.style.cssText =
     "position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;" +
     "border-radius:50%;background:rgba(207,232,255,0.9);" +

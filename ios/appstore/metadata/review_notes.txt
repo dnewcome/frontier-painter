@@ -1,0 +1,19 @@
+GUIDELINE 2.1 — INFORMATION PROVIDED IN ADVANCE
+
+1. Screen recording: a recording on a physical device, from launch through the tutorial and a puzzle, is attached to this submission.
+
+2. Purpose and audience: Frontier Painter is a single-player first-person puzzle game for general audiences (no objectionable content). You repair a broken spaceship by "painting" physical properties (cold, conductive, magnetic) onto broken surfaces, while moving in zero gravity, grabbing rails and walking on walls with magnetic boots. Value: a short, original puzzle/exploration game with a built-in tutorial.
+
+3. Setup / access: none. No account, login, purchase or sample files are needed. Launch the app and tap Start.
+
+4. External services: none. The game runs fully on-device and offline. No AI services, no analytics, no advertising, no third-party SDKs that collect data. Music and sound are synthesized on-device.
+
+5. Regional differences: none. The app is identical in every region.
+
+6. Regulated industry / third-party material: not applicable. All art, music and code are original.
+
+HOW TO PLAY (landscape; left thumb moves, right thumb looks from the amber ring)
+- Rooms 1-4 are a tutorial with on-screen prompts and glowing beacons: look + fly, grab a rail, mag boots (walk on the ceiling), boots jump.
+- Room 5 (The Frost Gap): walk up to the rail, pick COLD in the palette (top-left), tap PAINT and trace the spiral. Grab the frosted rail (GRAB) and pull yourself across with the left stick. Then pick CONDUCTIVE, PAINT the power conduit (trace the lightning bolt). The exit door opens; go through it.
+- Menu (top-right): restart room, replay tutorial, music on/off, optional gyro look (uses the motion sensor only if switched on).
+- Progress is saved on the device only.

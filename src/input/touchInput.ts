@@ -30,6 +30,8 @@ export interface TouchInputDeps {
   cycleScenario: () => void;
   reset: () => void;
   replayTutorial: () => void;
+  musicOn: () => boolean;
+  setMusic: (on: boolean) => void;
 }
 
 /** Finger travel (CSS px) for full stick deflection, at UI scale 1 (phones). */
@@ -426,6 +428,15 @@ export function createTouchInput(deps: TouchInputDeps): void {
   const menu = el("div", "t-menu", root);
   const mReset = el("button", "", menu, "↺  Restart room");
   const mTutorial = el("button", "", menu, "🎓  Replay tutorial");
+  const mMusic = el("button", "", menu, "");
+  const musicLabel = (): void => {
+    mMusic.textContent = `♪  Music: ${deps.musicOn() ? "on" : "off"}`;
+  };
+  musicLabel();
+  mMusic.addEventListener("click", () => {
+    deps.setMusic(!deps.musicOn());
+    musicLabel();
+  });
   // Room skip + camera toggle are developer tools (?debug=1 only).
   const debug = isDebug();
   const mNext = debug ? el("button", "", menu, "▶  Next room (debug)") : null;
@@ -436,7 +447,10 @@ export function createTouchInput(deps: TouchInputDeps): void {
   }
   // Menu items use `click` (fires after touchend, which carries the user
   // activation iOS requires for the motion-permission prompt).
-  menuBtn.addEventListener("click", () => menu.classList.toggle("open"));
+  menuBtn.addEventListener("click", () => {
+    musicLabel(); // the title screen (or M) may have changed it
+    menu.classList.toggle("open");
+  });
   const closeMenu = (): void => menu.classList.remove("open");
   mNext?.addEventListener("click", () => {
     deps.cycleScenario();
@@ -517,40 +531,6 @@ export function createTouchInput(deps: TouchInputDeps): void {
       setGyro(true);
     }
     closeMenu();
-  });
-
-  // ---- first-run how-to ----------------------------------------------------
-  const intro = el("div", "t-card show", root);
-  el("h2", "", intro, "FRONTIER PAINTER");
-  el(
-    "p",
-    "",
-    intro,
-    "The ship's software is failing and reality is glitching out. " +
-      "Read each broken surface's symptom, pick the property that fixes it, " +
-      "then walk up to it, press PAINT and trace the glyph with your finger.",
-  );
-  el(
-    "p",
-    "",
-    intro,
-    "Left thumb: move · Right thumb: look · BOOTS: walk on any surface · GRAB: hold a rail · PAINT: when a broken surface is in reach",
-  );
-  const introGo = el("button", "", el("div", "row", intro), "Start");
-  let seen = false;
-  try {
-    seen = localStorage.getItem("fp_intro_seen") === "1";
-  } catch {
-    /* storage unavailable (private mode) — just show it */
-  }
-  if (seen) intro.classList.remove("show");
-  introGo.addEventListener("click", () => {
-    intro.classList.remove("show");
-    try {
-      localStorage.setItem("fp_intro_seen", "1");
-    } catch {
-      /* ignore */
-    }
   });
 
   // ---- per-frame state sync (cheap: only touches the DOM on change) --------

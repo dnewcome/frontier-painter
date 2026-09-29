@@ -1,0 +1,20 @@
+You're a painter aboard a generation ship, woken early by a software bug. The ship's reality is rendered in software — and it's coming apart. Rails overheat, circuits die, doors seal shut. You can't fix code, but you can paint.
+
+Your palette isn't colors. It's physics.
+
+PAINT PROPERTIES, NOT PIGMENT
+Every broken surface shows a symptom — "overheated", "dead circuit", "seized". Work out which property repairs it: COLD, CONDUCTIVE, or MAGNETIC. Walk up, press PAINT, and trace the property's glyph with your finger. Paint an overheated rail cold and it frosts into a handhold you can climb along. Paint a dead conduit conductive and the power comes back on.
+
+MOVE LIKE AN ASTRONAUT
+• Drift and thrust through zero gravity.
+• Grab rails and pull yourself hand over hand.
+• Switch on mag boots and walk on anything — floor, walls, ceiling. Walk off an edge and the wall becomes your floor.
+• Jump with boots on and let magnetism pull you to the nearest surface.
+
+LEARN AS YOU GO
+A short tutorial teaches one move per room, with clear prompts and glowing beacons — then the puzzles begin. Some surfaces are blocked by others: right property, right place, right order.
+
+• Twin-stick touch controls designed for iPhone and iPad, with optional gyro look
+• Original generative ambient soundtrack
+• Your progress is saved automatically
+• No ads, no accounts, no tracking — plays fully offline
