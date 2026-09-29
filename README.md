@@ -10,10 +10,11 @@ broken surface takes exactly **one** correct property ("right property, right
 place") — the puzzle is deducing which. **Magnetic boots** let you walk across
 any surface — floor, walls, ceiling — and release to float and paint.
 
-Built with **TypeScript + Vite + Babylon.js**. Movement uses Babylon's built-in
-collisions (`mesh.moveWithCollisions` + ellipsoid) plus a **custom kinematic
-zero-g controller** (velocity + damping, no gravity) and analytic magnetic-boots
-surface walking. No external physics engine (Havok/Ammo/Cannon) yet — that is
+Built with **TypeScript + Vite + Babylon.js**. Movement is a **custom kinematic
+zero-g controller** (velocity + damping, no gravity) with **analytic room
+containment** (the player is clamped to the room box, so no wall can be leaked
+through) and analytic magnetic-boots surface walking. Handholds are grabbed and
+ridden, not collided with. No external physics engine (Havok/Ammo/Cannon) yet — that is
 deliberately deferred. The room is dressed procedurally as a clean utilitarian
 (NASA/ISS-style) ship interior — no binary assets.
 
@@ -27,6 +28,8 @@ push to `main`.
 
 - **On iPhone:** open the link in Safari, turn the phone sideways, then
   **Share → Add to Home Screen** to launch it fullscreen like an app.
+- **On iPad:** same link, or the TestFlight build (universal iPhone + iPad app,
+  landscape). The touch controls scale up for the larger screen.
 - **On desktop:** same link; keyboard + mouse controls below.
 
 ## Touch controls (phone / tablet)
@@ -89,7 +92,8 @@ npm run test:e2e   # Playwright e2e
 
 A native iPhone/iPad build wraps the same Vite bundle in a Capacitor shell
 (`ios/`, Swift Package Manager — no CocoaPods, so it's generated and synced from
-Linux). Native extras: Taptic haptics on paint, landscape-only, fullscreen.
+Linux). Universal app: iPhone **and** iPad (`TARGETED_DEVICE_FAMILY = 1,2`).
+Native extras: Taptic haptics on paint, landscape-only, fullscreen.
 
 ```bash
 npm run build:ios                      # web build + cap sync ios
@@ -119,6 +123,9 @@ npm run playthrough:crosswire
 # Phone playthrough (emulated iPhone, real touch input; solves room 1 and
 # goes through the exit door into room 2) -> demos/mobile/
 npm run playthrough:mobile
+
+# Same touch flow on an iPad mini-sized screen -> demos/ipad/
+npm run playthrough:ipad
 
 # Magnetic-boots locomotion slice -> demos/latest/
 npm run playthrough

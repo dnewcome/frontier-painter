@@ -21,7 +21,10 @@ export interface FrozenStroke {
   totalLength: number;
 }
 
-/** Build a collidable tube mesh along `points`. checkCollisions = true. */
+/** Build a handhold tube mesh along `points`. Not a collider: a grabbed player
+ *  rides the centerline (inside the tube), so a solid tube would eject them
+ *  sideways on release — and a fresh tube only became solid after its first
+ *  render, which made scripted runs diverge from rendered play. */
 export function freezeStrokeMesh(
   scene: Scene,
   id: string,
@@ -34,7 +37,7 @@ export function freezeStrokeMesh(
     { path, radius, tessellation: 12, cap: 2, updatable: false },
     scene,
   );
-  mesh.checkCollisions = true;
+  mesh.checkCollisions = false;
 
   const mat = new StandardMaterial(`handholdMat:${id}`, scene);
   mat.diffuseColor = new Color3(0.85, 0.6, 0.2);

@@ -82,6 +82,15 @@
         font-size: 12px;
         max-width: min(46vw, 420px);
       }
+      /* Tablets: larger objective text (matches the touch UI's iPad scale-up). */
+      @media (min-width: 1000px) and (min-height: 700px) {
+        #hud.compact {
+          font-size: 15px;
+          max-width: min(46vw, 540px);
+        }
+        #hud .obj-title { font-size: 13px; }
+        #hud .obj-room { font-size: 12px; }
+      }
       #hud.compact .hud-info,
       #hud.compact .win-banner {
         display: none !important;

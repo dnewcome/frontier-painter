@@ -23,10 +23,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const BASE_URL = process.env.BASE_URL || "http://localhost:4173";
 const RUN_LABEL = process.env.RUN_LABEL || process.argv[2] || "mobile";
-const VIEWPORT = { width: 844, height: 390 }; // iPhone 15-ish, landscape
-const IPHONE_UA =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 " +
-  "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+// DEVICE=ipad runs the same touch flow on an iPad mini-sized landscape screen.
+const IPAD = process.env.DEVICE === "ipad";
+const VIEWPORT = IPAD ? { width: 1133, height: 744 } : { width: 844, height: 390 }; // iPhone 15-ish
+const DPR = IPAD ? 2 : 3;
+const IPHONE_UA = IPAD
+  ? "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 " +
+    "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+  : "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 " +
+    "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 const RAIL_START = [0, 1.2, -6];
 
 const outDir = path.join(ROOT, "demos", RUN_LABEL);
@@ -75,7 +80,7 @@ async function main() {
   });
   const context = await browser.newContext({
     viewport: VIEWPORT,
-    deviceScaleFactor: 3,
+    deviceScaleFactor: DPR,
     isMobile: true,
     hasTouch: true,
     userAgent: IPHONE_UA,
@@ -102,7 +107,7 @@ async function main() {
     });
   /** Hold the joystick deflected until `done(state)` or timeout. */
   const holdStick = async (dx, dy, done, timeoutMs = 12_000) => {
-    const [x0, y0] = [150, 300];
+    const [x0, y0] = [150, VIEWPORT.height - 90];
     await touch("touchStart", x0, y0);
     for (let i = 1; i <= 6; i++) await touch("touchMove", x0 + (dx * i) / 6, y0 + (dy * i) / 6);
     const t0 = Date.now();
@@ -254,7 +259,7 @@ async function main() {
   const setpts = `setpts=PTS/${factor.toFixed(4)}`;
   const mp4 = path.join(outDir, "demo.mp4");
   const gif = path.join(outDir, "demo.gif");
-  await ffmpeg(["-y", "-i", webmPath, "-vf", `${setpts},fps=15,scale=844:-2:flags=lanczos`, "-an",
+  await ffmpeg(["-y", "-i", webmPath, "-vf", `${setpts},fps=15,scale=${VIEWPORT.width & ~1}:-2:flags=lanczos`, "-an",
     "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p", "-movflags", "+faststart", mp4]);
   await ffmpeg(["-y", "-i", webmPath, "-vf",
     `${setpts},fps=12,scale=720:-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3`, gif]);

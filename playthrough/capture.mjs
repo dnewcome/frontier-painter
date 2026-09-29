@@ -346,7 +346,7 @@ async function main() {
     await shot("pushoff");
 
     // -- 08 draw -----------------------------------------------------------
-    // Mid-air, draw the bridge stroke: it freezes into one collidable amber
+    // Mid-air, draw the bridge stroke: it freezes into one grabbable amber
     // handhold tube spanning from near the spawn toward the goal. Zero-g drawing
     // is preserved across the boots additions (handholds count increases).
     const m8 = await page.evaluate((stroke) => {

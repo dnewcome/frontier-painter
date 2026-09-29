@@ -87,6 +87,9 @@ export function resolveBoots(config: SimConfig): BootsConfig {
  *  wall it isn't planted on (see replant's `inset` — fixes corner tunneling). */
 export const CLAMP_MARGIN = 0.05;
 
+/** Inner wall faces of the room box (room.ts: 16 x 6 x 20, walls 0.5 thick). */
+const INNER = { hx: 7.75, y0: 0.25, y1: 5.75, hz: 9.75 };
+
 /** Walkable-rect inset = max ellipsoid half-extent + margin. */
 export function resolveInset(config: SimConfig): number {
   const e = config.playerEllipsoid;
@@ -125,6 +128,33 @@ class KinematicControllerImpl implements KinematicController {
     // Apply displacement with wall/tube collisions.
     this.scratch.set(velocity[0] * dt, velocity[1] * dt, velocity[2] * dt);
     mesh.moveWithCollisions(this.scratch);
+
+    // Analytic containment. Babylon's ellipsoid collider lets a step sink a
+    // little into a wall now and then; with thrust held against the wall
+    // (velocity never drops) those slips add up until the player pops out of
+    // the room. The room is a plain box, so clamp the center to its interior
+    // and cancel the velocity component pushing outward.
+    const e = this.config.playerEllipsoid;
+    const p = mesh.position;
+    const lo = [-INNER.hx + e[0], INNER.y0 + e[1], -INNER.hz + e[2]];
+    const hi = [INNER.hx - e[0], INNER.y1 - e[1], INNER.hz - e[2]];
+    const c = [p.x, p.y, p.z];
+    let clamped = false;
+    for (let i = 0; i < 3; i++) {
+      if (c[i] < lo[i]) {
+        c[i] = lo[i];
+        if (velocity[i] < 0) velocity[i] = 0;
+        clamped = true;
+      } else if (c[i] > hi[i]) {
+        c[i] = hi[i];
+        if (velocity[i] > 0) velocity[i] = 0;
+        clamped = true;
+      }
+    }
+    if (clamped) {
+      p.set(c[0], c[1], c[2]);
+      mesh.computeWorldMatrix(true);
+    }
   }
 
   walkStep(

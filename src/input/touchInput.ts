@@ -27,8 +27,15 @@ export interface TouchInputDeps {
   reset: () => void;
 }
 
-/** Finger travel (CSS px) for full stick deflection. */
+/** Finger travel (CSS px) for full stick deflection, at UI scale 1 (phones). */
 const STICK_RADIUS = 56;
+
+/** Touch-UI scale: 1 on phones, up to 1.4x on iPads. Thumbs don't grow with
+ *  the screen, so this is a modest bump for reach + legibility, not linear. */
+function uiScale(): number {
+  const short = Math.min(window.innerWidth, window.innerHeight);
+  return Math.min(1.4, Math.max(1, (short / 390) * 0.7));
+}
 const DEAD_ZONE = 0.12;
 /** Look sensitivity for a finger drag (rad per CSS px). */
 const LOOK_SENS = 0.0045;
@@ -48,19 +55,21 @@ const SWATCH: Record<PaintProperty, { hex: string; label: string }> = {
 const CSS = `
 #touch-ui, #touch-ui * { -webkit-user-select: none; user-select: none;
   -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-#touch-ui { position: fixed; inset: 0; z-index: 15; pointer-events: none;
+#touch-ui { --s: 1; position: fixed; inset: 0; z-index: 15; pointer-events: none;
   font: 600 12px/1.2 system-ui, -apple-system, sans-serif; color: #e6f4ff; }
 #touch-ui .t-layer { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
 #touch-ui button { pointer-events: auto; touch-action: none; border: 0; font: inherit; color: inherit; }
 .t-stick-base, .t-stick-knob { position: absolute; border-radius: 50%; pointer-events: none; }
-.t-stick-base { width: ${STICK_RADIUS * 2 + 24}px; height: ${STICK_RADIUS * 2 + 24}px;
-  margin: -${STICK_RADIUS + 12}px 0 0 -${STICK_RADIUS + 12}px;
+.t-stick-base { width: calc(${STICK_RADIUS * 2 + 24}px * var(--s)); height: calc(${STICK_RADIUS * 2 + 24}px * var(--s));
+  margin: calc(-${STICK_RADIUS + 12}px * var(--s)) 0 0 calc(-${STICK_RADIUS + 12}px * var(--s));
   border: 2px solid rgba(207,232,255,0.35); background: rgba(10,20,40,0.25); }
-.t-stick-knob { width: 56px; height: 56px; margin: -28px 0 0 -28px;
+.t-stick-knob { width: calc(56px * var(--s)); height: calc(56px * var(--s));
+  margin: calc(-28px * var(--s)) 0 0 calc(-28px * var(--s));
   background: rgba(207,232,255,0.55); box-shadow: 0 0 16px rgba(140,217,255,0.5); }
 .t-stick-base.idle { opacity: 0.45; }
 .t-palette { position: absolute; top: max(10px, env(safe-area-inset-top));
-  left: max(12px, env(safe-area-inset-left)); display: flex; gap: 10px; }
+  left: max(12px, env(safe-area-inset-left)); display: flex; gap: 10px;
+  transform: scale(var(--s)); transform-origin: top left; }
 .t-swatch { width: 52px; height: 52px; border-radius: 50%; position: relative;
   background: rgba(8,14,28,0.55); box-shadow: inset 0 0 0 2px rgba(255,255,255,0.12); }
 .t-swatch .dot { position: absolute; inset: 9px; border-radius: 50%; }
@@ -69,7 +78,8 @@ const CSS = `
 .t-swatch.sel { box-shadow: 0 0 0 3px #fff, 0 0 18px rgba(255,255,255,0.35); }
 .t-swatch.sel .lbl { opacity: 1; }
 .t-actions { position: absolute; right: max(14px, env(safe-area-inset-right));
-  bottom: max(14px, env(safe-area-inset-bottom)); display: flex; gap: 12px; align-items: flex-end; }
+  bottom: max(14px, env(safe-area-inset-bottom)); display: flex; gap: 12px; align-items: flex-end;
+  transform: scale(var(--s)); transform-origin: bottom right; }
 .t-btn { width: 72px; height: 72px; border-radius: 50%; background: rgba(8,14,28,0.6);
   box-shadow: inset 0 0 0 2px rgba(207,232,255,0.3); font-size: 11px; letter-spacing: 0.05em; }
 .t-btn.big { width: 88px; height: 88px; font-size: 13px; }
@@ -77,15 +87,16 @@ const CSS = `
 .t-btn:active, .t-swatch:active { transform: scale(0.94); }
 .t-menu-btn { position: absolute; top: max(10px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right)); width: 44px; height: 44px; border-radius: 12px;
-  background: rgba(8,14,28,0.55); font-size: 20px; }
-.t-menu { position: absolute; top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+  background: rgba(8,14,28,0.55); font-size: 20px; transform: scale(var(--s)); transform-origin: top right; }
+.t-menu { position: absolute; top: calc(max(10px, env(safe-area-inset-top)) + 52px * var(--s));
   right: max(12px, env(safe-area-inset-right)); display: none; flex-direction: column; gap: 6px;
-  padding: 10px; border-radius: 14px; background: rgba(6,12,24,0.88); min-width: 190px; pointer-events: auto; }
+  padding: 10px; border-radius: 14px; background: rgba(6,12,24,0.88); min-width: 190px; pointer-events: auto;
+  transform: scale(var(--s)); transform-origin: top right; }
 .t-menu.open { display: flex; }
 .t-menu button { text-align: left; padding: 11px 12px; border-radius: 9px; background: rgba(255,255,255,0.06); font-size: 13px; }
 .t-menu .tip { font-weight: 400; font-size: 11px; opacity: 0.65; padding: 4px 2px 0; max-width: 200px; }
-.t-toast { position: absolute; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 96px);
-  transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; font-size: 13px;
+.t-toast { position: absolute; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 96px * var(--s));
+  transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; font-size: calc(13px * var(--s));
   background: rgba(6,12,24,0.8); opacity: 0; transition: opacity 0.18s; white-space: nowrap; }
 .t-toast.show { opacity: 1; }
 .t-toast.good { box-shadow: inset 0 0 0 2px #4fe08a; }
@@ -144,13 +155,21 @@ export function createTouchInput(deps: TouchInputDeps): void {
   const root = el("div", "", document.body);
   root.id = "touch-ui";
   const layer = el("div", "t-layer", root);
+  let scale = 1;
+  let stickR = STICK_RADIUS;
+  const applyScale = (): void => {
+    scale = uiScale();
+    stickR = STICK_RADIUS * scale;
+    root.style.setProperty("--s", scale.toFixed(3));
+  };
+  applyScale();
 
   // ---- joystick visuals ----------------------------------------------------
   const base = el("div", "t-stick-base idle", root);
   const knob = el("div", "t-stick-knob", root);
   const idlePos = (): [number, number] => [
-    Math.max(24, window.innerWidth * 0.06) + STICK_RADIUS + 12,
-    window.innerHeight - (STICK_RADIUS + 34),
+    Math.max(24, window.innerWidth * 0.06) + (STICK_RADIUS + 12) * scale,
+    window.innerHeight - (STICK_RADIUS + 34) * scale,
   ];
   const placeStick = (bx: number, by: number, kx: number, ky: number): void => {
     base.style.left = `${bx}px`;
@@ -165,6 +184,7 @@ export function createTouchInput(deps: TouchInputDeps): void {
   };
   showIdleStick();
   window.addEventListener("resize", () => {
+    applyScale();
     if (stickId === null) showIdleStick();
   });
 
@@ -247,9 +267,9 @@ export function createTouchInput(deps: TouchInputDeps): void {
     const vx = t.x - t.x0;
     const vy = t.y - t.y0;
     const len = Math.hypot(vx, vy);
-    const k = len > STICK_RADIUS ? STICK_RADIUS / len : 1;
+    const k = len > stickR ? stickR / len : 1;
     placeStick(t.x0, t.y0, t.x0 + vx * k, t.y0 + vy * k);
-    const mag = Math.min(1, len / STICK_RADIUS);
+    const mag = Math.min(1, len / stickR);
     if (mag < DEAD_ZONE || len < 1e-6) {
       controls.setStick(0, 0);
       return;

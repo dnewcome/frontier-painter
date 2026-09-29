@@ -14,6 +14,7 @@
     "playthrough:paint": "CAPTURE_FILE=capture-paint.mjs RUN_LABEL=frostgap node playthrough/run.mjs",
     "playthrough:crosswire": "CAPTURE_FILE=capture-crosswire.mjs RUN_LABEL=crosswire node playthrough/run.mjs",
     "playthrough:mobile": "CAPTURE_FILE=capture-mobile.mjs RUN_LABEL=mobile node playthrough/run.mjs",
+    "playthrough:ipad": "DEVICE=ipad CAPTURE_FILE=capture-mobile.mjs RUN_LABEL=ipad node playthrough/run.mjs",
     "icons": "node scripts/make-icons.mjs",
     "build:ios": "npm run build && cap sync ios"
   },

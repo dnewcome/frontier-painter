@@ -93,6 +93,8 @@ class GameEngineImpl implements GameEngine {
     this.scene.render();
   };
 
+  private renderQueued = false;
+
   private pumpOne(dt: number): void {
     for (const h of this.hooks) h.onFixedStep(dt);
   }
@@ -105,7 +107,16 @@ class GameEngineImpl implements GameEngine {
 
   runFixedSteps(dt: number, steps: number): void {
     for (let i = 0; i < steps; i++) this.pumpOne(dt);
-    this.renderOnce();
+    // Render once when the current script turn ends, not once per call: a
+    // scripted loop of N step() calls used to queue N full frames, and under
+    // software GL that backlog stalled screenshots/new contexts for ~15 s.
+    if (!this.renderQueued) {
+      this.renderQueued = true;
+      queueMicrotask(() => {
+        this.renderQueued = false;
+        this.renderOnce();
+      });
+    }
   }
 
   renderOnce(): void {

@@ -1,7 +1,7 @@
 // src/world/room.ts
-// Builds the single sealed zero-g room: six interior walls as static collidable
-// meshes (checkCollisions = true), a hemispheric ambient fill light, and the
-// emissive goal marker. Owns the deterministic player spawn and the goal
+// Builds the single sealed zero-g room: six interior wall meshes (contained
+// analytically, see below), a hemispheric ambient fill light, and the emissive
+// goal marker. Owns the deterministic player spawn and the goal
 // win-test. Purely procedural geometry; no external assets.
 import type { Scene } from "@babylonjs/core/scene";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
@@ -60,7 +60,11 @@ class WorldImpl implements World {
     const cz = 0;
 
     // Six walls as thin, static, collidable boxes enclosing the interior. They
-    // never move, so freeze their world matrices for cheap, stable collisions.
+    // never move, so freeze their world matrices. They are NOT Babylon colliders:
+    // the float integrator contains the player analytically against this box
+    // (player/controller.ts), which is exact. Driving an ellipsoid into these
+    // boxes with moveWithCollisions sank into / crept off the wall and could
+    // eventually leak the player out of the room.
     const makeWall = (
       name: string,
       w: number,
@@ -73,7 +77,7 @@ class WorldImpl implements World {
       const wall = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
       wall.position.set(px, py, pz);
       wall.material = wallMat;
-      wall.checkCollisions = true;
+      wall.checkCollisions = false;
       wall.freezeWorldMatrix();
     };
 
