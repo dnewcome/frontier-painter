@@ -94,7 +94,7 @@ export interface GameState {
   // ---- room progression (additive) ----
   /** Active scenario id ("none" = the empty legacy room). */
   scenario: string;
-  /** True once the console is online and the exit door is commanded open. */
+  /** True once the room is clear (all surfaces repaired) and the exit door is open. */
   doorOpen: boolean;
   /** Door panel retraction, 0 (sealed) .. 1 (open). */
   doorProgress: number;

@@ -52,7 +52,7 @@ class HudImpl implements Hud {
 
     this.banner = document.createElement("div");
     this.banner.className = "win-banner";
-    this.banner.textContent = "CONSOLE ONLINE — EXIT DOOR OPEN";
+    this.banner.textContent = "ROOM CLEAR — EXIT DOOR OPEN";
 
     this.root.appendChild(this.info);
     this.root.appendChild(this.banner);
@@ -104,11 +104,9 @@ class HudImpl implements Hud {
         paintLines.push(`  ${s.satisfied ? "✓" : "✗"} ${s.label} — needs ${s.required} · ${status}`);
       }
       paintLines.push(
-        state.goalReached
-          ? "  console: ONLINE — exit door open, go through it"
-          : state.paintComplete
-            ? "  console: POWERED (get to it)"
-            : "  console: locked (repair all surfaces)",
+        state.doorOpen
+          ? "  ROOM CLEAR — exit door open, go through it"
+          : "  exit door: sealed (repair all surfaces)",
       );
     }
 
@@ -134,7 +132,7 @@ class HudImpl implements Hud {
       this.lastText = text;
     }
 
-    this.setWin(state.goalReached);
+    this.setWin(state.doorOpen && state.paintSurfaces.length > 0);
   }
 
   /** Compact objective: surface name + symptom + status. Never shows the
@@ -148,12 +146,8 @@ class HudImpl implements Hud {
       if (lvl) {
         html += `<div class="obj-room">ROOM ${levelNumber(lvl.id)} · ${esc(lvl.title)}</div>`;
       }
-      const title = state.goalReached
-        ? "DOOR OPEN — GO THROUGH IT"
-        : state.paintComplete
-          ? "CONSOLE POWERED — GET TO IT"
-          : "REPAIR THE SHIP";
-      html += `<div class="obj-title${state.goalReached ? " go" : ""}">${title}</div>`;
+      const title = state.doorOpen ? "ROOM CLEAR — HEAD FOR THE EXIT" : "REPAIR THE SHIP";
+      html += `<div class="obj-title${state.doorOpen ? " go" : ""}">${title}</div>`;
       for (const s of state.paintSurfaces) {
         const cls = s.satisfied ? "ok" : s.available ? "bad" : "lock";
         const icon = s.satisfied ? "✓" : s.available ? "✗" : "🔒";

@@ -23,6 +23,7 @@ import { createHumanInput } from "./input/humanInput";
 import { createTouchInput } from "./input/touchInput";
 import { isTouchDevice } from "./input/device";
 import { createTransition } from "./hud/transition";
+import { createExitCue } from "./hud/exitCue";
 import { levelNumber, nextLevel } from "./levels";
 
 function boot(): void {
@@ -98,6 +99,13 @@ function boot(): void {
   const cycleScenario = (): void => {
     api.loadScenario(nextLevel(paintField.scenario()).id);
   };
+
+  // Once a room is clear: ROOM CLEAR flash + EXIT marker / edge arrow.
+  createExitCue({
+    scene: game.scene,
+    getState: () => api.getState(),
+    project: (p) => api.projectToScreen(p),
+  });
 
   // Walking out through the open exit door fades to the next room's title card
   // and loads it while the screen is black. (The empty "none" room has no next.)

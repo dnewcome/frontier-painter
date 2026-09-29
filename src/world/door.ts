@@ -1,8 +1,10 @@
 // src/world/door.ts
 // The room's EXIT: a sliding double door set into the far (+Z) wall, right
-// behind the console. It stays sealed (red status light) until the console
-// comes online, then its two panels retract into the jambs (green light),
-// revealing a lit airlock. Moving into the doorway clears the room.
+// behind the console. It stays sealed (red status light, faint red threshold)
+// until the room is clear (every broken surface repaired), then its panels
+// retract into the jambs and the doorway lights up — pulsing green frame,
+// glowing threshold pad, green light spilling into the room — so it's obvious
+// where to go. Moving into the doorway leaves the room.
 //
 // Purely visual + a doorway volume test. The +Z wall's collision box is left
 // intact: the doorway volume starts in front of the wall face (z > DOORWAY_Z),
@@ -14,6 +16,8 @@ import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { PointLight } from "@babylonjs/core/Lights/pointLight";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { Vec3 } from "../types";
 import { makeAirlockTexture } from "../dressing/textures";
 
@@ -49,6 +53,8 @@ const DOORWAY_DEPTH = 0.75;
 
 const LIGHT_SEALED = new Color3(1.0, 0.18, 0.12);
 const LIGHT_OPEN = new Color3(0.3, 1.0, 0.55);
+/** Threshold pad while sealed: a faint red "not yet". */
+const PAD_SEALED = new Color3(0.18, 0.03, 0.03);
 
 class DoorImpl implements Door {
   readonly anchor: Vec3;
@@ -57,7 +63,12 @@ class DoorImpl implements Door {
   private readonly left: Mesh;
   private readonly right: Mesh;
   private readonly lightMat: StandardMaterial;
+  private readonly frameMat: StandardMaterial;
+  private readonly padMat: StandardMaterial;
+  private readonly spill: PointLight;
   private open = false;
+  /** Visual-only pulse clock (render frames), never read by the sim. */
+  private glowT = 0;
   private p = 0;
   private shownP = -1;
 
@@ -86,7 +97,7 @@ class DoorImpl implements Door {
     inner.freezeWorldMatrix();
 
     // Frame: two jambs + a header, proud of the wall.
-    const frameMat = new StandardMaterial("door_frameMat", scene);
+    const frameMat = (this.frameMat = new StandardMaterial("door_frameMat", scene));
     frameMat.diffuseColor = new Color3(0.2, 0.22, 0.27);
     frameMat.specularColor = new Color3(0.15, 0.15, 0.17);
     const jamb = 0.26;
@@ -129,12 +140,50 @@ class DoorImpl implements Door {
     };
     this.left = mk("door_panelL");
     this.right = mk("door_panelR");
+
+    // "Walk through here" cues, dark until the room is clear: a threshold pad
+    // on the floor in front of the door and a green light spilling into the
+    // room from the doorway. The spill light always exists (intensity 0 while
+    // sealed) so opening never toggles a light and recompiles every shader.
+    this.padMat = new StandardMaterial("door_padMat", scene);
+    this.padMat.diffuseColor = new Color3(0, 0, 0);
+    this.padMat.specularColor = new Color3(0, 0, 0);
+    this.padMat.emissiveColor = PAD_SEALED.clone();
+    const pad = visual(MeshBuilder.CreateGround("door_pad", { width: WIDTH, height: 1.4 }, scene));
+    pad.material = this.padMat;
+    pad.position.set(0, o.floorY + 0.03, o.wallZ - 0.7);
+    pad.freezeWorldMatrix();
+
+    this.spill = new PointLight("door_spill", new Vector3(0, cy, o.wallZ - 0.9), scene);
+    this.spill.diffuse = new Color3(0.3, 1.0, 0.55);
+    this.spill.specular = new Color3(0.1, 0.3, 0.15);
+    this.spill.range = 9;
+    this.spill.intensity = 0;
+
+    scene.onBeforeRenderObservable.add(() => this.glow(scene.getEngine().getDeltaTime() / 1000));
     this.render();
+  }
+
+  /** Per rendered frame: pulse the frame, pad and spill light while open. */
+  private glow(dt: number): void {
+    if (!this.open) return;
+    this.glowT += Math.min(dt, 0.1);
+    const pulse = 0.5 + 0.5 * Math.sin(this.glowT * 4); // ~0.6 Hz
+    const k = this.p; // fade in with the panels
+    this.frameMat.emissiveColor.set(0.1 * k + 0.25 * k * pulse, (0.55 + 0.45 * pulse) * k, (0.25 + 0.2 * pulse) * k);
+    this.padMat.emissiveColor.set(0.12 * k, (0.45 + 0.4 * pulse) * k, (0.2 + 0.15 * pulse) * k);
+    this.spill.intensity = (0.7 + 0.5 * pulse) * k;
   }
 
   setOpen(open: boolean): void {
     this.open = open;
     this.lightMat.emissiveColor = (open ? LIGHT_OPEN : LIGHT_SEALED).clone();
+    if (!open) {
+      this.glowT = 0;
+      this.frameMat.emissiveColor.set(0, 0, 0);
+      this.padMat.emissiveColor.copyFrom(PAD_SEALED);
+      this.spill.intensity = 0;
+    }
   }
 
   isOpen(): boolean {

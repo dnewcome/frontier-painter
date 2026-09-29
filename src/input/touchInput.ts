@@ -520,15 +520,13 @@ export function createTouchInput(deps: TouchInputDeps): void {
       actionBtn.textContent = act;
       actionBtn.classList.toggle("on", s.grabbing);
     }
-    if (s.goalReached !== lastWin) {
+    const clear = s.doorOpen && s.paintSurfaces.length > 0;
+    if (clear !== lastWin) {
       const was = lastWin;
-      lastWin = s.goalReached;
-      // Console online -> the exit door behind it opens; going through it
-      // loads the next room (main.ts). Skip the cue on the initial sync.
-      if (s.goalReached && was === false) {
-        say("Console online — exit door open", "good");
-        feel("success");
-      }
+      lastWin = clear;
+      // Room clear -> the exit door opens (the big ROOM CLEAR flash + exit
+      // marker come from hud/exitCue.ts). Skip the buzz on the initial sync.
+      if (clear && was === false) feel("success");
     }
   });
 }

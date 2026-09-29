@@ -72,8 +72,11 @@ the same two items.
 Headed play boots straight into the **Frost Gap** paint puzzle; clear it and go
 through the exit door to reach the **Cross-Wired Junction**. The palette + a per-surface repair
 checklist show in the HUD; the console won't power until every broken surface is
-repaired. Once the console is online, the **exit door** behind it slides open
-(red → green light); float or walk through it to go to the next room. Each
+repaired. The moment the last surface is fixed the room is **clear**: a ROOM
+CLEAR banner flashes and the **exit door** in the far wall slides open and
+lights up (pulsing green frame, glowing threshold, green light spilling into the
+room), with an EXIT marker over it — or an arrow at the screen edge when it's
+behind you. Float or walk through it to go to the next room. Each
 room's wall stencils (sector, bay, EXIT → next sector) change with it.
 
 Two puzzle rooms exist so far:

@@ -16,6 +16,8 @@ export interface Goal {
   isReached(pos: Vec3): boolean;
   reached(): boolean;
   setReached(v: boolean): void;
+  /** Show/hide the marker (the latch still works while hidden). */
+  setVisible(v: boolean): void;
   reset(): void;
 }
 
@@ -71,6 +73,10 @@ class GoalImpl implements Goal {
     this.latched = v;
     // Brighten on win so a recorded playthrough is legible.
     this.mat.emissiveColor = (v ? WON_EMISSIVE : IDLE_EMISSIVE).clone();
+  }
+
+  setVisible(v: boolean): void {
+    this.mesh.isVisible = v;
   }
 
   reset(): void {

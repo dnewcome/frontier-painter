@@ -72,9 +72,13 @@ class AutomationImpl implements GameApi {
         ) {
           world.goal.setReached(true);
         }
-        // Console online -> the exit door opens; moving into the doorway once
-        // it's mostly open clears the room (main.ts then loads the next one).
-        if (world.goal.reached() && !world.door.isOpen()) world.door.setOpen(true);
+        // Room clear (every broken surface repaired) -> the exit door opens;
+        // moving into the doorway once it's mostly open leaves the room
+        // (main.ts then loads the next one). The empty legacy room has no
+        // surfaces, so there the console latch opens it instead.
+        const clear =
+          paintField.scenario() === "none" ? world.goal.reached() : paintField.complete();
+        if (clear && !world.door.isOpen()) world.door.setOpen(true);
         world.door.fixedUpdate(dt);
         if (!this.cleared && world.door.progress() > 0.6 && world.door.inDoorway(player.getPosition())) {
           this.cleared = true;
@@ -189,6 +193,9 @@ class AutomationImpl implements GameApi {
   loadScenario(name: ScenarioName): void {
     this.deps.paintField.setScenario(name);
     this.deps.dressing?.setLabels(wallLabelsFor(name));
+    // In puzzle rooms the lit exit door is the objective; the green goal orb
+    // would sit in the doorway competing with it. Keep it in the empty room.
+    this.deps.world.goal.setVisible(name === "none");
     // Full reset so the player is at spawn and the registry/world are clean for
     // the freshly-armed scenario.
     this.reset();

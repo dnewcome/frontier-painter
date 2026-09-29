@@ -84,3 +84,23 @@ test("exit door: sealed until the console is online, then leads to the next room
   await expect(page.locator("#room-fade .t")).toHaveText("THE CROSS-WIRED JUNCTION");
   expect(errors).toEqual([]);
 });
+
+test("the door opens the moment the room is clear, wherever you are", async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(() => {
+    const g = window.game;
+    g.loadScenario("frostgap");
+    g.selectColor("cold");
+    g.paint("access-rail");
+    const half = g.step(1 / 60, 5);
+    g.selectColor("conductive");
+    g.paint("power-conduit");
+    return { half, clear: g.step(1 / 60, 90) };
+  });
+  expect(r.half.doorOpen).toBe(false); // one surface still broken
+  expect(r.clear.paintComplete).toBe(true);
+  expect(r.clear.goalReached).toBe(false); // never went near the console
+  expect(r.clear.doorOpen).toBe(true);
+  expect(r.clear.doorProgress).toBe(1);
+  await expect(page.locator("#exit-cue .flash.on")).toBeVisible();
+});

@@ -8,7 +8,7 @@
 //
 //   first-run card -> Start -> wrong property rejected -> rail frosted ->
 //   joystick to the rail -> GRAB -> joystick pulls along the rail -> swipe to aim
-//   at the conduit -> tap it conductive -> console online, exit door opens ->
+//   at the conduit -> tap it conductive -> ROOM CLEAR, exit door opens + lights ->
 //   RELEASE, swipe to face the door, joystick through it -> room 2 loads
 //
 // Exits non-zero unless the console powers on AND the door leads to room 2. Outputs
@@ -204,11 +204,11 @@ async function main() {
     await tapSurface("power-conduit");
     await page.locator(".t-toast", { hasText: "Repaired" }).waitFor();
 
-    // 09 console online -> the exit door behind it opens
-    await page.locator(".t-toast", { hasText: "exit door open" }).waitFor({ timeout: 10_000 });
-    assert((await st()).goalReached === true, "09 console latched (goalReached)");
+    // 09 room clear -> ROOM CLEAR flash, the exit door opens and lights up
+    await page.locator("#exit-cue .flash.on").waitFor({ timeout: 10_000 });
+    assert((await st()).doorOpen === true, "09 room clear opens the exit door");
     await page.waitForFunction(() => window.game.getState().doorProgress >= 1);
-    await shot("door-open");
+    await shot("room-clear");
 
     // 10 let go of the rail, turn to face the doorway (closed-loop look swipes)
     await page.locator('.t-btn[data-role="action"]').tap();
