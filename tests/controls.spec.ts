@@ -11,7 +11,7 @@ async function boot(page: Page): Promise<string[]> {
     if (m.type() === "error") errors.push(m.text());
   });
   page.on("pageerror", (e) => errors.push(String(e)));
-  await page.goto("/");
+  await page.goto("/?room=frostgap");
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, {
     timeout: 30_000,
   });
@@ -103,14 +103,14 @@ test("desktop: room-skip (P) and camera (C) keys are debug-only", async ({ page 
       const s = window.game.getState();
       return [s.scenario, s.cameraMode];
     });
-  await page.goto("/");
+  await page.goto("/?room=frostgap");
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
   const before = await snap();
   await page.keyboard.press("KeyP");
   await page.keyboard.press("KeyC");
   expect(await snap()).toEqual(before);
 
-  await page.goto("/?debug=1");
+  await page.goto("/?debug=1&room=frostgap");
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
   const [room0, cam0] = await snap();
   await page.keyboard.press("KeyP");
@@ -121,7 +121,7 @@ test("desktop: room-skip (P) and camera (C) keys are debug-only", async ({ page 
 });
 
 test("desktop: F near a broken surface opens the trace; dragging the glyph paints it", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?room=frostgap");
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
   await expect(page.locator("#paint-mark")).toContainText("[F]");
   await page.keyboard.press("Digit1"); // cold

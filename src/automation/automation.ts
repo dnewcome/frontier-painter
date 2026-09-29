@@ -6,6 +6,7 @@
 // module. step() runs through engine.runFixedSteps for deterministic headless
 // playthroughs.
 import type { Dressing } from "../dressing/dressing";
+import type { Objectives } from "../tutorial/objectives";
 import { wallLabelsFor } from "../levels";
 import { Vector3, Matrix } from "@babylonjs/core/Maths/math.vector";
 import type { GameApi } from "../gameApi";
@@ -38,6 +39,8 @@ export interface AutomationDeps {
   avatar?: Avatar;
   /** Set dressing; its wall stencils are repainted per room. */
   dressing?: Dressing;
+  /** Room objectives (tutorial steps / coaching); decide when a room is clear. */
+  objectives?: Objectives;
 }
 
 class AutomationImpl implements GameApi {
@@ -62,6 +65,8 @@ class AutomationImpl implements GameApi {
     engine.addFixedStepHook({
       onFixedStep: (dt) => {
         this.elapsed += dt;
+        // Room objectives advance on the same fixed-step clock as the sim.
+        deps.objectives?.update(this.getState());
         // The console latches only once the player is in range AND every armed
         // paint target is repaired (paintField.complete() is vacuously true in
         // the empty "none" scenario, so the legacy boots slice is unaffected).
@@ -76,8 +81,7 @@ class AutomationImpl implements GameApi {
         // moving into the doorway once it's mostly open leaves the room
         // (main.ts then loads the next one). The empty legacy room has no
         // surfaces, so there the console latch opens it instead.
-        const clear =
-          paintField.scenario() === "none" ? world.goal.reached() : paintField.complete();
+        const clear = this.roomClear();
         if (clear && !world.door.isOpen()) world.door.setOpen(true);
         world.door.fixedUpdate(dt);
         if (!this.cleared && world.door.progress() > 0.6 && world.door.inDoorway(player.getPosition())) {
@@ -113,6 +117,16 @@ class AutomationImpl implements GameApi {
     );
   }
 
+  /** Tutorial rooms are clear when their objective steps are done; paint
+   *  rooms (coaching-only scripts) when every surface is repaired; the empty
+   *  legacy room on the console latch. */
+  private roomClear(): boolean {
+    const { paintField, world, objectives } = this.deps;
+    if (paintField.scenario() === "none") return world.goal.reached();
+    if (objectives?.hasScript() && !objectives.coachOnly()) return objectives.complete();
+    return paintField.complete();
+  }
+
   isReady(): boolean {
     return this._isReady;
   }
@@ -123,6 +137,9 @@ class AutomationImpl implements GameApi {
     // paintField AFTER registry.clear() so any rail handhold it registered is
     // gone before it re-arms its targets to the broken state.
     this.deps.paintField.reset();
+    // Objectives AFTER registry.clear(): a room's ready-made props (e.g. the
+    // grab room's rail) are rebuilt into the fresh registry.
+    this.deps.objectives?.reset();
     this.selectedColor = "cold";
     this.cleared = false;
     this.deps.player.reset();
@@ -192,6 +209,7 @@ class AutomationImpl implements GameApi {
 
   loadScenario(name: ScenarioName): void {
     this.deps.paintField.setScenario(name);
+    this.deps.objectives?.setRoom(name);
     this.deps.dressing?.setLabels(wallLabelsFor(name));
     // In puzzle rooms the lit exit door is the objective; the green goal orb
     // would sit in the doorway competing with it. Keep it in the empty room.
@@ -265,6 +283,9 @@ class AutomationImpl implements GameApi {
       doorProgress: world.door.progress(),
       exitAnchor: world.door.anchor,
       roomCleared: this.cleared,
+      view: player.getForward(),
+      objective: this.deps.objectives?.state() ?? null,
+      roomClear: this.roomClear(),
     };
   }
 }

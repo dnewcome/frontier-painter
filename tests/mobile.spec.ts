@@ -23,7 +23,7 @@ async function boot(page: Page): Promise<string[]> {
     if (m.type() === "error") errors.push(m.text());
   });
   page.on("pageerror", (e) => errors.push(String(e)));
-  await page.goto("/");
+  await page.goto("/?room=frostgap");
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, {
     timeout: 30_000,
   });
@@ -170,7 +170,7 @@ test("phone: menu has no room-skip / camera items unless ?debug=1", async ({ pag
   await expect(page.getByRole("button", { name: /Next room/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Camera/ })).toHaveCount(0);
 
-  await page.goto("/?debug=1");
+  await page.goto("/?debug=1&room=frostgap");
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
   await page.getByRole("button", { name: "Menu" }).tap();
   await expect(page.getByRole("button", { name: /Next room/ })).toHaveCount(1);

@@ -17,9 +17,18 @@ export interface Level {
 }
 
 export const LEVELS: readonly Level[] = [
-  { id: "frostgap", title: "The Frost Gap", sector: "SECT. A", short: "FROST GAP", bay: "BAY 01" },
-  { id: "crosswire", title: "The Cross-Wired Junction", sector: "SECT. B", short: "JUNCTION", bay: "BAY 02" },
+  // Tutorial: one mechanic per room.
+  { id: "wakeup", title: "Wake-Up Bay", sector: "SECT. A", short: "WAKE-UP BAY", bay: "BAY 01" },
+  { id: "handhold", title: "Handhold Run", sector: "SECT. B", short: "HANDHOLDS", bay: "BAY 02" },
+  { id: "boots", title: "Mag Boots", sector: "SECT. C", short: "MAG BOOTS", bay: "BAY 03" },
+  { id: "hop", title: "Boot Hop", sector: "SECT. D", short: "BOOT HOP", bay: "BAY 04" },
+  // Paint puzzles.
+  { id: "frostgap", title: "The Frost Gap", sector: "SECT. E", short: "FROST GAP", bay: "BAY 05" },
+  { id: "crosswire", title: "The Cross-Wired Junction", sector: "SECT. F", short: "JUNCTION", bay: "BAY 06" },
 ];
+
+/** Number of tutorial rooms at the start of LEVELS. */
+export const TUTORIAL_ROOMS = 4;
 
 /** 1-based room number, or 0 for a scenario outside the sequence. */
 export function levelNumber(id: ScenarioName): number {
@@ -30,10 +39,17 @@ export function levelOf(id: ScenarioName): Level | null {
   return LEVELS.find((l) => l.id === id) ?? null;
 }
 
-/** The room after `id` (wraps to the first; "none" -> the first room). */
+/** The room after `id`. After the last room it loops to the first PUZZLE
+ *  (the tutorial is not replayed); "none" -> the first room. */
 export function nextLevel(id: ScenarioName): Level {
   const i = LEVELS.findIndex((l) => l.id === id);
-  return LEVELS[(i + 1) % LEVELS.length];
+  if (i === LEVELS.length - 1) return LEVELS[TUTORIAL_ROOMS];
+  return LEVELS[i + 1];
+}
+
+/** A valid room id, or null. */
+export function asRoom(id: string | null | undefined): Level["id"] | null {
+  return LEVELS.find((l) => l.id === id)?.id ?? null;
 }
 
 /** Wall stencil text for a scenario. "none" keeps the original generic plates. */

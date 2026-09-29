@@ -31,7 +31,14 @@ import type { Vec3, PaintProperty, PaintSurfaceState } from "../types";
 import type { HandholdRegistry } from "../drawing/drawing";
 
 /** Named scenarios. "none" = empty room (legacy boots slice). */
-export type ScenarioName = "none" | "frostgap" | "crosswire";
+export type ScenarioName =
+  | "none"
+  | "wakeup"
+  | "handhold"
+  | "boots"
+  | "hop"
+  | "frostgap"
+  | "crosswire";
 
 /** Emissive tint per property, for the "fixed" look + HUD swatches. */
 export const PROP_COLOR: Record<PaintProperty, Color3> = {

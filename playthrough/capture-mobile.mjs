@@ -152,7 +152,7 @@ async function main() {
   let won = false;
   try {
     // 01 first-run card
-    await page.goto(BASE_URL, { waitUntil: "load" });
+    await page.goto(`${BASE_URL}/?room=frostgap`, { waitUntil: "load" });
     await page.waitForFunction(() => window.game && window.game.isReady(), null, { timeout: 30_000 });
     await page.getByRole("button", { name: "Start" }).waitFor();
     await shot("intro");

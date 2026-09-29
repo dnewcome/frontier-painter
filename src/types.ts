@@ -102,6 +102,18 @@ export interface GameState {
   exitAnchor: Vec3;
   /** True once the player has moved through the open exit door. */
   roomCleared: boolean;
+  /** Camera look direction (unit), including pitch. */
+  view: Vec3;
+  /** Current room objective step, or null when there is none / all done. */
+  objective: {
+    step: number;
+    total: number;
+    prompt: string;
+    beacon: Vec3 | null;
+    label: string;
+  } | null;
+  /** True when the room's objectives are all done (the door opens). */
+  roomClear: boolean;
 }
 
 /** Tunable simulation constants shared across player + drawing + world. */

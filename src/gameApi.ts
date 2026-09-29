@@ -1,6 +1,7 @@
 // src/gameApi.ts  (OWNED BY Scaffold/Integration step — public automation contract)
 // The deterministic surface mounted at window.game. Every method drives the
 // simulation directly; NO synthetic pointer/mouse events are ever required.
+import type { ScenarioName } from "./paint/paintField";
 import type {
   Vec3,
   HandholdId,
@@ -92,7 +93,7 @@ export interface GameApi {
    * console on repairing them; "none" clears them (the empty legacy room). Resets
    * target state. Setup-only (like reset), so determinism is preserved.
    */
-  loadScenario(name: "none" | "frostgap" | "crosswire"): void;
+  loadScenario(name: ScenarioName): void;
 
   /** Choose the brush palette color subsequent paint() calls apply. */
   selectColor(color: PaintProperty): void;

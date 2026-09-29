@@ -28,6 +28,7 @@ export interface TouchInputDeps {
   selectColor: (color: PaintProperty) => void;
   cycleScenario: () => void;
   reset: () => void;
+  replayTutorial: () => void;
 }
 
 /** Finger travel (CSS px) for full stick deflection, at UI scale 1 (phones). */
@@ -379,6 +380,7 @@ export function createTouchInput(deps: TouchInputDeps): void {
   menuBtn.setAttribute("aria-label", "Menu");
   const menu = el("div", "t-menu", root);
   const mReset = el("button", "", menu, "↺  Restart room");
+  const mTutorial = el("button", "", menu, "🎓  Replay tutorial");
   // Room skip + camera toggle are developer tools (?debug=1 only).
   const debug = isDebug();
   const mNext = debug ? el("button", "", menu, "▶  Next room (debug)") : null;
@@ -397,6 +399,10 @@ export function createTouchInput(deps: TouchInputDeps): void {
   });
   mReset.addEventListener("click", () => {
     deps.reset();
+    closeMenu();
+  });
+  mTutorial.addEventListener("click", () => {
+    deps.replayTutorial();
     closeMenu();
   });
   mCam?.addEventListener("click", () => {
@@ -507,6 +513,7 @@ export function createTouchInput(deps: TouchInputDeps): void {
   let lastBoots: boolean | null = null;
   let lastAction = "";
   let lastWin: boolean | null = null;
+  let lastStep = "";
   let lastArmed: boolean | null = null;
   let frame = 0;
   scene.onBeforeRenderObservable.add(() => {
@@ -541,7 +548,10 @@ export function createTouchInput(deps: TouchInputDeps): void {
       actionBtn.classList.toggle("on", s.grabbing);
       actionBtn.classList.toggle("paint", act === "PAINT");
     }
-    const clear = s.doorOpen && s.paintSurfaces.length > 0;
+    const stepKey = `${s.scenario}:${s.objective?.step ?? "done"}`;
+    if (lastStep && stepKey !== lastStep && lastStep.split(":")[0] === s.scenario) feel("tick");
+    lastStep = stepKey;
+    const clear = s.doorOpen && s.scenario !== "none";
     if (clear !== lastWin) {
       const was = lastWin;
       lastWin = clear;

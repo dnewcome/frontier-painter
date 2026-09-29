@@ -25,7 +25,8 @@ import { isTouchDevice } from "./input/device";
 import { createTransition } from "./hud/transition";
 import { createExitCue } from "./hud/exitCue";
 import { createPaintTrace } from "./input/paintTrace";
-import { levelNumber, nextLevel } from "./levels";
+import { LEVELS, asRoom, levelNumber, nextLevel } from "./levels";
+import { createObjectives } from "./tutorial/objectives";
 
 function boot(): void {
   const canvas = document.getElementById("renderCanvas");
@@ -75,6 +76,8 @@ function boot(): void {
   // desktop debug readout.
   const hud = createHud(hudRoot, { compact: touch });
 
+  const objectives = createObjectives(game.scene, drawing.registry, touch);
+
   const api = createAutomation({
     engine: game,
     camera,
@@ -86,20 +89,40 @@ function boot(): void {
     config,
     avatar,
     dressing,
+    objectives,
   });
 
-  // Headed play boots straight into the first paint puzzle. The deterministic
-  // boots capture explicitly calls loadScenario("none") to run the empty room.
-  api.loadScenario("frostgap");
+  // Where to start: ?room=<id> (dev / tests), else the saved progress, else
+  // the first tutorial room. Progress is saved each time a room is entered.
+  // (The deterministic boots capture calls loadScenario("none") itself.)
+  const PROGRESS_KEY = "fp_room";
+  const saveRoom = (id: string): void => {
+    try {
+      localStorage.setItem(PROGRESS_KEY, id);
+    } catch {
+      /* storage unavailable — progress just isn't kept */
+    }
+  };
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(PROGRESS_KEY);
+  } catch {
+    /* ignore */
+  }
+  const startRoom =
+    asRoom(new URLSearchParams(window.location.search).get("room")) ?? asRoom(saved) ?? LEVELS[0].id;
+  api.loadScenario(startRoom);
 
   // Real human controls for headed play (keyboard thrust/walk + boots + grab +
   // camera + draw). Boots default OFF (player.reset() spawns floating), so the
   // existing draw->grab->pull->goal loop is untouched. These only perturb the
   // sim via per-fixed-step intent and one-shot verbs and never fire during the
   // scripted window.game playthrough, so determinism is preserved.
-  const cycleScenario = (): void => {
-    api.loadScenario(nextLevel(paintField.scenario()).id);
+  const enterRoom = (id: (typeof LEVELS)[number]["id"]): void => {
+    api.loadScenario(id);
+    saveRoom(id);
   };
+  const cycleScenario = (): void => enterRoom(nextLevel(paintField.scenario()).id);
 
   // Once a room is clear: ROOM CLEAR flash + EXIT marker / edge arrow.
   createExitCue({
@@ -116,7 +139,7 @@ function boot(): void {
     if (!api.getState().roomCleared) return;
     const next = nextLevel(paintField.scenario());
     transition.play(`ROOM ${levelNumber(next.id)} · ${next.sector}`, next.title.toUpperCase(), () =>
-      api.loadScenario(next.id),
+      enterRoom(next.id),
     );
   });
 
@@ -163,6 +186,10 @@ function boot(): void {
       selectColor: (c) => api.selectColor(c),
       cycleScenario,
       reset: () => api.reset(),
+      replayTutorial: () =>
+        transition.play(`ROOM 1 · ${LEVELS[0].sector}`, LEVELS[0].title.toUpperCase(), () =>
+          enterRoom(LEVELS[0].id),
+        ),
     });
   }
 

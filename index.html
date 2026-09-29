@@ -88,22 +88,57 @@
           font-size: 15px;
           max-width: min(46vw, 540px);
         }
-        #hud .obj-title { font-size: 13px; }
-        #hud .obj-room { font-size: 12px; }
+        :is(#hud, #hud-obj) .obj-title { font-size: 13px; }
+        :is(#hud, #hud-obj) .obj-room { font-size: 12px; }
       }
       #hud.compact .hud-info,
       #hud.compact .win-banner {
         display: none !important;
       }
-      #hud .hud-objective:empty {
+      /* Desktop: the objective / coach card sits top-center (the debug readout
+         keeps the top-left). */
+      #hud-obj {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        top: 10px;
+        z-index: 10;
+        max-width: min(46vw, 480px);
+        color: #cfe8ff;
+        font-size: 14px;
+        line-height: 1.4;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+      }
+      :is(#hud, #hud-obj) .obj-step {
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        color: #ffc04d;
+        text-align: center;
+        margin-bottom: 3px;
+      }
+      :is(#hud, #hud-obj) .obj-prompt {
+        font-weight: 600;
+        text-align: center;
+      }
+      :is(#hud, #hud-obj) .obj-prompt.sub {
+        font-weight: 400;
+        opacity: 0.85;
+        margin-top: 5px;
+        font-size: 0.92em;
+      }
+      body.tracing #hud-obj {
+        visibility: hidden;
+      }
+      :is(#hud, #hud-obj) .hud-objective:empty {
         display: none;
       }
-      #hud .hud-objective {
+      :is(#hud, #hud-obj) .hud-objective {
         background: rgba(6, 12, 24, 0.62);
         border-radius: 12px;
         padding: 8px 12px;
       }
-      #hud .obj-title {
+      :is(#hud, #hud-obj) .obj-title {
         font-weight: 700;
         letter-spacing: 0.1em;
         font-size: 11px;
@@ -111,34 +146,34 @@
         margin-bottom: 4px;
         text-align: center;
       }
-      #hud .obj-title.go {
+      :is(#hud, #hud-obj) .obj-title.go {
         color: #4fe08a;
         opacity: 1;
       }
-      #hud .obj-room {
+      :is(#hud, #hud-obj) .obj-room {
         font-size: 10px;
         letter-spacing: 0.08em;
         opacity: 0.55;
         text-align: center;
         margin-bottom: 2px;
       }
-      #hud .obj-row {
+      :is(#hud, #hud-obj) .obj-row {
         display: flex;
         gap: 6px;
         align-items: baseline;
         margin-top: 2px;
       }
-      #hud .obj-row .ic {
+      :is(#hud, #hud-obj) .obj-row .ic {
         width: 1.2em;
         text-align: center;
       }
-      #hud .obj-row .sym {
+      :is(#hud, #hud-obj) .obj-row .sym {
         opacity: 0.8;
         font-weight: 400;
       }
-      #hud .obj-row.ok .ic { color: #4fe08a; }
-      #hud .obj-row.bad .ic { color: #ff8a4d; }
-      #hud .obj-row.ok .sym { color: #4fe08a; }
+      :is(#hud, #hud-obj) .obj-row.ok .ic { color: #4fe08a; }
+      :is(#hud, #hud-obj) .obj-row.bad .ic { color: #ff8a4d; }
+      :is(#hud, #hud-obj) .obj-row.ok .sym { color: #4fe08a; }
       /* ---- rotate-to-landscape prompt (phones in portrait) ---- */
       #rotate-hint {
         display: none;

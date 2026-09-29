@@ -19,6 +19,10 @@ const CSS = `
   letter-spacing: 0.12em; color: #4fe08a; text-shadow: 0 0 24px rgba(79,224,138,0.7), 0 2px 0 #03150a; }
 #exit-cue .flash span { display: block; margin-top: 10px; font-size: clamp(13px, 2vw, 17px);
   font-weight: 600; text-shadow: 0 1px 3px #000; }
+#exit-cue .tick { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(0.6);
+  font: 800 54px/1 system-ui, sans-serif; color: #4fe08a; text-shadow: 0 0 22px rgba(79,224,138,0.8);
+  opacity: 0; transition: opacity 0.25s, transform 0.25s; }
+#exit-cue .tick.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 #exit-cue .mark { position: absolute; transform: translate(-50%, -100%); display: none;
   flex-direction: column; align-items: center; gap: 2px; }
 #exit-cue .mark .pill { padding: 4px 10px; border-radius: 999px; background: rgba(8,40,20,0.85);
@@ -26,6 +30,9 @@ const CSS = `
   letter-spacing: 0.08em; white-space: nowrap; }
 #exit-cue .mark .chev { font-size: 22px; line-height: 1; color: #4fe08a; animation: exit-bob 0.9s ease-in-out infinite; }
 @keyframes exit-bob { 50% { transform: translateY(6px); } }
+#exit-cue.goal .mark .pill, #exit-cue.goal .edge i { background: rgba(40,28,4,0.85);
+  box-shadow: 0 0 0 2px #ffc04d, 0 0 16px rgba(255,192,77,0.6); }
+#exit-cue.goal .mark .chev, #exit-cue.goal .edge i { color: #ffc04d; }
 #exit-cue .edge { position: absolute; width: 0; height: 0; display: none; }
 #exit-cue .edge i { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(8,40,20,0.85); box-shadow: 0 0 0 2px #4fe08a, 0 0 16px rgba(79,224,138,0.6);
@@ -51,13 +58,17 @@ export function createExitCue(deps: ExitCueDeps): void {
   root.innerHTML =
     '<div class="flash"><b>ROOM CLEAR</b><span>The exit door is open — head for the green light</span></div>' +
     '<div class="mark"><div class="pill">EXIT</div><div class="chev">▼</div></div>' +
-    '<div class="edge"><i>➜</i></div>';
+    '<div class="edge"><i>➜</i></div>' +
+    '<div class="tick">✓</div>';
   document.body.appendChild(root);
   const flash = root.querySelector(".flash") as HTMLDivElement;
   const mark = root.querySelector(".mark") as HTMLDivElement;
   const pill = root.querySelector(".pill") as HTMLDivElement;
   const edge = root.querySelector(".edge") as HTMLDivElement;
   const edgeIcon = edge.querySelector("i") as HTMLElement;
+  const tick = root.querySelector(".tick") as HTMLDivElement;
+  let lastStep = "";
+  let tickTimer = 0;
 
   let wasClear: boolean | null = null;
   let flashTimer = 0;
@@ -65,7 +76,15 @@ export function createExitCue(deps: ExitCueDeps): void {
 
   deps.scene.onBeforeRenderObservable.add(() => {
     const s = deps.getState();
-    const clear = s.doorOpen && !s.roomCleared && s.paintSurfaces.length > 0;
+    // A quick check mark whenever an objective step completes in this room.
+    const stepKey = `${s.scenario}:${s.objective?.step ?? "done"}`;
+    if (lastStep && stepKey !== lastStep && lastStep.split(":")[0] === s.scenario) {
+      tick.classList.add("on");
+      window.clearTimeout(tickTimer);
+      tickTimer = window.setTimeout(() => tick.classList.remove("on"), 700);
+    }
+    lastStep = stepKey;
+    const clear = s.doorOpen && !s.roomCleared && s.scenario !== "none";
 
     if (clear !== wasClear) {
       // Flash on the rising edge only (not when a page loads already clear).
@@ -77,15 +96,19 @@ export function createExitCue(deps: ExitCueDeps): void {
       if (!clear) flash.classList.remove("on");
       wasClear = clear;
     }
-    if (!clear) {
+    // What to point at: the open exit, else the current objective's beacon.
+    const beacon = !clear && s.objective?.beacon ? s.objective.beacon : null;
+    if (!clear && !beacon) {
       mark.style.display = "none";
       edge.style.display = "none";
       return;
     }
+    root.classList.toggle("goal", !clear);
+    const tag = clear ? "EXIT" : (s.objective?.label ?? "GO");
 
     const W = window.innerWidth;
     const H = window.innerHeight;
-    const a = s.exitAnchor;
+    const a = clear ? s.exitAnchor : (beacon as Vec3);
     const dist = Math.hypot(a[0] - s.playerPos[0], a[1] - s.playerPos[1], a[2] - s.playerPos[2]);
     const flashing = flash.classList.contains("on");
     const p = deps.project(a);
@@ -101,7 +124,7 @@ export function createExitCue(deps: ExitCueDeps): void {
       mark.style.left = `${p[0]}px`;
       // Float above the doorway center, clamped so it never leaves the top.
       mark.style.top = `${Math.max(64, p[1] - 70)}px`;
-      pill.textContent = `EXIT · ${Math.round(dist)} m`;
+      pill.textContent = `${tag} · ${Math.round(dist)} m`;
       return;
     }
 

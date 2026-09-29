@@ -31,7 +31,7 @@ class HudImpl implements Hud {
   private readonly root: HTMLElement;
   private readonly info: HTMLDivElement;
   private readonly banner: HTMLDivElement;
-  private readonly objective: HTMLDivElement | null = null;
+  private readonly objective: HTMLDivElement;
 
   // Render caches: skip DOM writes when nothing visible changed.
   private lastText = "";
@@ -40,11 +40,18 @@ class HudImpl implements Hud {
 
   constructor(root: HTMLElement, opts: HudOptions = {}) {
     this.root = root;
+    // Objective / coach card: inside the compact phone HUD, or its own
+    // top-center box on desktop (the debug readout keeps the top-left).
+    this.objective = document.createElement("div");
+    this.objective.className = "hud-objective";
     if (opts.compact) {
       root.classList.add("compact");
-      this.objective = document.createElement("div");
-      this.objective.className = "hud-objective";
       root.appendChild(this.objective);
+    } else {
+      const box = document.createElement("div");
+      box.id = "hud-obj";
+      box.appendChild(this.objective);
+      document.body.appendChild(box);
     }
 
     this.info = document.createElement("div");
@@ -63,7 +70,7 @@ class HudImpl implements Hud {
   }
 
   update(state: GameState): void {
-    if (this.objective) this.renderObjective(state);
+    this.renderObjective(state);
     const p = state.playerPos;
     const distGoal = distance(p, GOAL_CENTER);
     const speed = magnitude(state.velocity);
@@ -132,23 +139,28 @@ class HudImpl implements Hud {
       this.lastText = text;
     }
 
-    this.setWin(state.doorOpen && state.paintSurfaces.length > 0);
+    this.setWin(state.scenario === "none" ? state.goalReached : state.doorOpen);
   }
 
-  /** Compact objective: surface name + symptom + status. Never shows the
-   *  required property — diagnosing it is the puzzle. */
+  /** Objective card: room, then the current tutorial step, or the repair
+   *  checklist (symptoms, never the required property) with a coaching line. */
   private renderObjective(state: GameState): void {
     const obj = this.objective;
-    if (!obj) return;
     let html = "";
-    if (state.paintSurfaces.length > 0) {
-      const lvl = levelOf(state.scenario as ScenarioName);
-      if (lvl) {
-        html += `<div class="obj-room">ROOM ${levelNumber(lvl.id)} · ${esc(lvl.title)}</div>`;
-      }
-      const title = state.doorOpen ? "ROOM CLEAR — HEAD FOR THE EXIT" : "REPAIR THE SHIP";
-      html += `<div class="obj-title${state.doorOpen ? " go" : ""}">${title}</div>`;
-      for (const s of state.paintSurfaces) {
+    const lvl = levelOf(state.scenario as ScenarioName);
+    if (lvl) html += `<div class="obj-room">ROOM ${levelNumber(lvl.id)} · ${esc(lvl.title)}</div>`;
+    const surfaces = state.paintSurfaces;
+    const o = state.objective;
+    if (state.doorOpen && lvl) {
+      html += `<div class="obj-title go">ROOM CLEAR — HEAD FOR THE EXIT</div>`;
+    } else if (o && surfaces.length === 0) {
+      html += `<div class="obj-step">STEP ${o.step} / ${o.total}</div>`;
+      html += `<div class="obj-prompt">${esc(o.prompt)}</div>`;
+    } else if (surfaces.length > 0) {
+      html += `<div class="obj-title">REPAIR THE SHIP</div>`;
+    }
+    if (surfaces.length > 0) {
+      for (const s of surfaces) {
         const cls = s.satisfied ? "ok" : s.available ? "bad" : "lock";
         const icon = s.satisfied ? "✓" : s.available ? "✗" : "🔒";
         const detail = s.satisfied
@@ -160,6 +172,7 @@ class HudImpl implements Hud {
           `<div class="obj-row ${cls}"><span class="ic">${icon}</span>` +
           `<b>${esc(s.label)}</b><span class="sym">${detail}</span></div>`;
       }
+      if (o && !state.doorOpen) html += `<div class="obj-prompt sub">${esc(o.prompt)}</div>`;
     }
     if (html !== this.lastObjective) {
       obj.innerHTML = html;

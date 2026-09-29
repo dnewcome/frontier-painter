@@ -76,8 +76,9 @@ too hot to grip") rather than the answer — diagnosing the fix is the puzzle.
 next room and **C** toggles the demo / first-person camera; the phone menu gains
 the same two items.
 
-Headed play boots straight into the **Frost Gap** paint puzzle; clear it and go
-through the exit door to reach the **Cross-Wired Junction**. The palette + a per-surface repair
+Progress is saved: a fresh launch resumes the last room you entered (the phone
+menu has **Replay tutorial**). `?room=<id>` starts in a given room
+(`wakeup`, `handhold`, `boots`, `hop`, `frostgap`, `crosswire`). The palette + a per-surface repair
 checklist show in the HUD; the console won't power until every broken surface is
 repaired. The moment the last surface is fixed the room is **clear**: a ROOM
 CLEAR banner flashes and the **exit door** in the far wall slides open and
@@ -86,7 +87,18 @@ room), with an EXIT marker over it — or an arrow at the screen edge when it's
 behind you. Float or walk through it to go to the next room. Each
 room's wall stencils (sector, bay, EXIT → next sector) change with it.
 
-Two puzzle rooms exist so far:
+The game opens with a **four-room tutorial**, one mechanic per room, each an
+ordered list of steps with a coach prompt (worded for touch or desktop), a
+glowing beacon showing where to go, and a ✓ + haptic tick as each step lands:
+
+1. **Wake-Up Bay** — look at three blinking lights, then fly to two beacons.
+2. **Handhold Run** — a ready-made rail: fly to it, GRAB, pull along, let go.
+3. **Mag Boots** — fly up to the ceiling, BOOTS on, walk across it and down a
+   wall to the floor.
+4. **Boot Hop** — boots on, jump, jump beside a wall to land on it, walk up it.
+
+Then the paint puzzles (with light coaching — they clear when every surface is
+repaired):
 
 - **The Frost Gap** — two *independent* surfaces: frost a dead rail (`cold`) into
   a handhold to cross, and make a conduit (`conductive`) to power the console.
