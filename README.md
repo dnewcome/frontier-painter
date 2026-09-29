@@ -113,8 +113,11 @@ repaired):
 Every launch opens on a title screen (Continue / New game / Music) over the
 live room; its tap also unlocks audio (iOS requires a gesture). Music and sound
 effects are **synthesized live with Web Audio** (`src/audio/audio.ts`) — a
-generative ambient score plus short cues — so there are no audio files to ship
-or license. **M** toggles music on desktop; the phone menu has a toggle.
+generative ambient score plus sound effects: thruster hiss that follows the
+stick, mag-boot footsteps and landings, grab / release / hand-over-hand pulls,
+a per-property blip on the palette, a rising tone while tracing a glyph (start
+chime, reset fizzle, repaired / rejected), step ✓, door opening, room-transition
+whoosh and button clicks — so there are no audio files to ship or license. **M** toggles music on desktop; the phone menu has a toggle.
 
 The App Store listing lives in `ios/appstore/` (`metadata/*.txt`,
 `screenshots/{iphone-6.9,ipad-13}/`). Screenshots are rendered from the real

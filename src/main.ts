@@ -142,7 +142,18 @@ function boot(): void {
   }
 
   // Sound cues from state changes (visual/audio only; never touches the sim).
-  let prevAudio = { key: "", door: false, planted: false, air: false };
+  let prevAudio = { key: "", door: false, planted: false, air: false, grab: false, color: "", grabT: 0 };
+  let stepClock = 0;
+  let pullDist = 0;
+  // A soft click for every button tap (title, menu, BOOTS, palette...).
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      const b = (e.target as Element | null)?.closest?.("button");
+      if (b && !b.classList.contains("t-swatch")) audio.play("click");
+    },
+    { capture: true },
+  );
   game.scene.onBeforeRenderObservable.add(() => {
     const s = api.getState();
     const key = `${s.scenario}:${s.objective?.step ?? "done"}`;
@@ -153,7 +164,39 @@ function boot(): void {
     if (s.doorOpen && !prevAudio.door && prevAudio.key.split(":")[0] === s.scenario) audio.play("door");
     if (planted && !prevAudio.planted) audio.play("boots");
     if (s.airborne && !prevAudio.air) audio.play("hop");
-    prevAudio = { key, door: s.doorOpen, planted, air: s.airborne };
+    if (s.grabbing && !prevAudio.grab) audio.play("grab");
+    if (!s.grabbing && prevAudio.grab) audio.play("release");
+    if (prevAudio.color && s.selectedColor !== prevAudio.color) audio.play(`select-${s.selectedColor}`);
+
+    const dt = game.engine.getDeltaTime() / 1000;
+    const intent = controls.moveIntent();
+    // Thrusters: floating, not holding a rail, pushing the stick.
+    audio.setThrust(!s.booted && !s.grabbing && !transition.busy() ? intent : 0);
+    // Mag-boot footsteps while walking.
+    if (planted && intent > 0.15) {
+      stepClock += dt * (0.9 + intent * 1.6);
+      if (stepClock > 0.5) {
+        stepClock = 0;
+        audio.play("step");
+      }
+    } else stepClock = 0.45; // first step lands promptly
+    // Hand-over-hand taps while pulling along a rail.
+    if (s.grabbing && s.grabT !== null) {
+      pullDist += Math.abs(s.grabT - prevAudio.grabT);
+      if (pullDist > 0.045) {
+        pullDist = 0;
+        audio.play("pull");
+      }
+    }
+    prevAudio = {
+      key,
+      door: s.doorOpen,
+      planted,
+      air: s.airborne,
+      grab: s.grabbing,
+      color: s.selectedColor,
+      grabT: s.grabT ?? 0,
+    };
   });
 
   // Real human controls for headed play (keyboard thrust/walk + boots + grab +
@@ -181,6 +224,7 @@ function boot(): void {
     if (transition.busy() || paintField.scenario() === "none") return;
     if (!api.getState().roomCleared) return;
     const next = nextLevel(paintField.scenario());
+    audio.play("whoosh");
     transition.play(`ROOM ${levelNumber(next.id)} · ${next.sector}`, next.title.toUpperCase(), () =>
       enterRoom(next.id),
     );
@@ -188,7 +232,14 @@ function boot(): void {
 
   // The paint gesture: PAINT near a broken surface opens a trace of the
   // selected property's glyph over it; completing the stroke applies the paint.
-  const trace = createPaintTrace({ keyHint: touch ? undefined : "F" });
+  const trace = createPaintTrace({
+    keyHint: touch ? undefined : "F",
+    sound: {
+      start: () => audio.play("trace-start"),
+      progress: (p) => audio.setTrace(p),
+      reset: () => audio.play("trace-reset"),
+    },
+  });
   const surfaceOf = (id: string) => api.getState().paintSurfaces.find((s) => s.id === id);
   const requestPaint = (id: string): void => {
     const surf = surfaceOf(id);

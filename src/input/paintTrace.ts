@@ -71,7 +71,15 @@ const svgEl = <K extends keyof SVGElementTagNameMap>(tag: K, parent: Element): S
 };
 const ptsAttr = (pts: Pt[]): string => pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
 
-export function createPaintTrace(opts: { keyHint?: string } = {}): PaintTrace {
+export interface TraceSound {
+  start(): void;
+  /** Stroke progress 0..1, or null to silence the tone. */
+  progress(p: number | null): void;
+  reset(): void;
+}
+
+export function createPaintTrace(opts: { keyHint?: string; sound?: TraceSound } = {}): PaintTrace {
+  const snd = opts.sound;
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.appendChild(style);
@@ -128,6 +136,8 @@ export function createPaintTrace(opts: { keyHint?: string } = {}): PaintTrace {
     trail.setAttribute("points", ptsAttr(trailPts));
   };
   const resetStroke = (why: string): void => {
+    snd?.progress(null);
+    snd?.reset();
     tracing = null;
     progress = 0;
     trailPts = [];
@@ -137,6 +147,7 @@ export function createPaintTrace(opts: { keyHint?: string } = {}): PaintTrace {
   };
 
   const close = (): void => {
+    snd?.progress(null);
     open = false;
     finishing = false;
     tracing = null;
@@ -147,6 +158,7 @@ export function createPaintTrace(opts: { keyHint?: string } = {}): PaintTrace {
   };
 
   const finish = (): void => {
+    snd?.progress(null);
     finishing = true;
     tracing = null;
     const outcome = onTraced?.() ?? "wrong";
@@ -176,6 +188,8 @@ export function createPaintTrace(opts: { keyHint?: string } = {}): PaintTrace {
     progress = 0;
     trailPts = [[e.clientX, e.clientY]];
     say("Follow the line");
+    snd?.start();
+    snd?.progress(0);
     drawProgress();
   });
   root.addEventListener("pointermove", (e) => {
@@ -198,7 +212,10 @@ export function createPaintTrace(opts: { keyHint?: string } = {}): PaintTrace {
       resetStroke("Off the line — start again at the dot");
       return;
     }
-    if (bestD <= tol && best > progress) progress = best;
+    if (bestD <= tol && best > progress) {
+      progress = best;
+      snd?.progress(progress / (S.length - 1));
+    }
     drawProgress();
     if (progress >= S.length - 2) finish();
   });

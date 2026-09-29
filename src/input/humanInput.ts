@@ -74,6 +74,8 @@ export interface HumanControls {
   paintSurface(id: string): PaintOutcome;
   isBooted(): boolean;
   isGrabbing(): boolean;
+  /** Current move-input magnitude 0..1 (stick + keys). */
+  moveIntent(): number;
 }
 
 /** Thrust acceleration (m/s^2) at full input while floating. Gentle, RCS-style:
@@ -95,6 +97,8 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
   // Analog stick intent (touch). Combined with keyboard axes each fixed step.
   let stickX = 0;
   let stickY = 0;
+  /** Last move-input magnitude 0..1 (stick + keys), for thrust/footstep sounds. */
+  let intent = 0;
 
   // Reusable scratch so the per-step hook allocates nothing.
   const dir = new Vector3();
@@ -362,6 +366,7 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
       if (pressed.has("KeyQ")) ku -= 1;
       const fwd = clamp1(kf + stickY);
       const strafe = clamp1(ks + stickX);
+      intent = Math.min(1, Math.hypot(fwd, strafe, ku));
 
       if (player.isBooted()) {
         if (fwd !== 0 || strafe !== 0) {
@@ -417,5 +422,6 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
     paintSurface,
     isBooted: () => player.isBooted(),
     isGrabbing: () => player.isGrabbing(),
+    moveIntent: () => intent,
   };
 }

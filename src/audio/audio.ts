@@ -13,7 +13,24 @@
 // unlock() from a tap/click (the title screen's Start button). Audio pauses
 // while the app is hidden/backgrounded. Settings persist in localStorage.
 
-export type Sfx = "tick" | "repaired" | "rejected" | "boots" | "door" | "hop";
+export type Sfx =
+  | "tick"
+  | "repaired"
+  | "rejected"
+  | "boots"
+  | "door"
+  | "hop"
+  | "step"
+  | "grab"
+  | "release"
+  | "pull"
+  | "click"
+  | "select-cold"
+  | "select-conductive"
+  | "select-magnetic"
+  | "trace-start"
+  | "trace-reset"
+  | "whoosh";
 
 export interface GameAudio {
   /** Create/resume the AudioContext — must be called inside a user gesture. */
@@ -21,6 +38,10 @@ export interface GameAudio {
   musicOn(): boolean;
   setMusic(on: boolean): void;
   play(s: Sfx): void;
+  /** Continuous thruster hiss, 0 (off) .. 1 (full). */
+  setThrust(level: number): void;
+  /** Continuous tracing tone while painting: progress 0..1, or null = off. */
+  setTrace(progress: number | null): void;
 }
 
 const MUSIC_KEY = "fp_music";
@@ -65,6 +86,12 @@ export function createAudio(): GameAudio {
   let nextBar = 0;
   let barIndex = 0;
   const rnd = mulberry32(20260929);
+  let stepFlip = false;
+  // Continuous voices (built lazily once the context exists).
+  let thrustGain: GainNode | null = null;
+  let thrustFilter: BiquadFilterNode | null = null;
+  let traceOsc: OscillatorNode | null = null;
+  let traceGain: GainNode | null = null;
 
   const build = (): void => {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -262,11 +289,87 @@ export function createAudio(): GameAudio {
       case "hop":
         tone("sine", 110, 260, t, 0.22, 0.18);
         break;
+      case "step": {
+        // Mag-boot footstep: a short metallic clank, alternating pitch.
+        stepFlip = !stepFlip;
+        const f = stepFlip ? 1 : 0.86;
+        tone("triangle", 420 * f, 160 * f, t, 0.09, 0.11);
+        noiseBurst(t, 0.05, 3200 * f, 1500, 0.07);
+        break;
+      }
+      case "grab":
+        tone("square", 900, 300, t, 0.06, 0.06);
+        tone("sine", 220, 140, t, 0.16, 0.2);
+        noiseBurst(t, 0.06, 4000, 2000, 0.08);
+        break;
+      case "release":
+        tone("sine", 320, 520, t, 0.1, 0.1);
+        break;
+      case "pull":
+        // Hand-over-hand tap along the rail.
+        tone("triangle", 600 + rnd() * 120, 380, t, 0.05, 0.07);
+        break;
+      case "click":
+        tone("sine", 1400, 900, t, 0.035, 0.05);
+        break;
+      case "select-cold":
+        bell(midi(88), t, sfxBus, 0.09);
+        bell(midi(95), t + 0.05, sfxBus, 0.05);
+        break;
+      case "select-conductive":
+        tone("sawtooth", 660, 880, t, 0.09, 0.05);
+        tone("square", 1320, 1320, t + 0.03, 0.04, 0.025);
+        break;
+      case "select-magnetic":
+        tone("sine", 330, 250, t, 0.22, 0.12);
+        tone("sine", 333, 252, t, 0.22, 0.08);
+        break;
+      case "trace-start":
+        bell(midi(76), t, sfxBus, 0.1);
+        break;
+      case "trace-reset":
+        noiseBurst(t, 0.22, 1800, 400, 0.12);
+        tone("sine", 400, 180, t, 0.2, 0.06);
+        break;
+      case "whoosh":
+        noiseBurst(t, 0.9, 250, 3200, 0.2);
+        break;
       case "door":
         noiseBurst(t, 1.1, 300, 2600, 0.22);
         for (const [i, n] of [62, 69, 74, 78].entries()) bell(midi(n), t + 0.3 + i * 0.12, sfxBus, 0.1);
         break;
     }
+  };
+
+  const ensureThrust = (): void => {
+    if (!ctx || thrustGain) return;
+    // Looping filtered noise = RCS thruster hiss.
+    const len = ctx.sampleRate * 2;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = rnd() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    thrustFilter = ctx.createBiquadFilter();
+    thrustFilter.type = "bandpass";
+    thrustFilter.Q.value = 0.8;
+    thrustFilter.frequency.value = 900;
+    thrustGain = ctx.createGain();
+    thrustGain.gain.value = 0;
+    src.connect(thrustFilter).connect(thrustGain).connect(sfxBus);
+    src.start();
+  };
+
+  const ensureTrace = (): void => {
+    if (!ctx || traceOsc) return;
+    traceOsc = ctx.createOscillator();
+    traceOsc.type = "triangle";
+    traceOsc.frequency.value = 330;
+    traceGain = ctx.createGain();
+    traceGain.gain.value = 0;
+    traceOsc.connect(traceGain).connect(sfxBus);
+    traceOsc.start();
   };
 
   // Pause everything while the app is hidden; resume when it's back.
@@ -296,5 +399,23 @@ export function createAudio(): GameAudio {
       else stopMusic();
     },
     play,
+    setThrust(level) {
+      if (!ctx || ctx.state !== "running") return;
+      ensureThrust();
+      const l = Math.max(0, Math.min(1, level));
+      thrustGain!.gain.setTargetAtTime(l * 0.16, ctx.currentTime, 0.08);
+      thrustFilter!.frequency.setTargetAtTime(700 + l * 900, ctx.currentTime, 0.1);
+    },
+    setTrace(progress) {
+      if (!ctx || ctx.state !== "running") return;
+      ensureTrace();
+      if (progress === null) {
+        traceGain!.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+        return;
+      }
+      // Rises two octaves over the stroke.
+      traceOsc!.frequency.setTargetAtTime(330 * Math.pow(4, progress), ctx.currentTime, 0.04);
+      traceGain!.gain.setTargetAtTime(0.05, ctx.currentTime, 0.04);
+    },
   };
 }
