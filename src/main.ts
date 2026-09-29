@@ -24,6 +24,7 @@ import { createTouchInput } from "./input/touchInput";
 import { isTouchDevice } from "./input/device";
 import { createTransition } from "./hud/transition";
 import { createExitCue } from "./hud/exitCue";
+import { createPaintTrace } from "./input/paintTrace";
 import { levelNumber, nextLevel } from "./levels";
 
 function boot(): void {
@@ -119,6 +120,18 @@ function boot(): void {
     );
   });
 
+  // The paint gesture: PAINT near a broken surface opens a trace of the
+  // selected property's glyph over it; completing the stroke applies the paint.
+  const trace = createPaintTrace({ keyHint: touch ? undefined : "F" });
+  const surfaceOf = (id: string) => api.getState().paintSurfaces.find((s) => s.id === id);
+  const requestPaint = (id: string): void => {
+    const surf = surfaceOf(id);
+    if (!surf || trace.isOpen()) return;
+    trace.open(api.getState().selectedColor, surf.label, api.projectToScreen(surf.anchor), () =>
+      controls.paintSurface(id),
+    );
+  };
+
   const controls = createHumanInput({
     scene: game.scene,
     engine: game,
@@ -131,6 +144,14 @@ function boot(): void {
     selectColor: (c) => api.selectColor(c),
     paint: (id) => api.paint(id),
     cycleScenario,
+    requestPaint,
+  });
+
+  // PAINT marker over the broken surface in reach (hidden while tracing).
+  game.scene.onBeforeRenderObservable.add(() => {
+    const id = controls.paintTarget();
+    const surf = id ? surfaceOf(id) : undefined;
+    trace.setTarget(surf ? { label: surf.label, screen: api.projectToScreen(surf.anchor) } : null);
   });
 
   // Phones/tablets: on-screen twin-stick UI driving the same controls.

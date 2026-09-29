@@ -5,17 +5,19 @@
 //
 //   left thumb   floating joystick  -> thrust (floating) / walk (boots) /
 //                                       pull along a grabbed handhold
-//   right thumb  drag               -> look (finger up -> look up)
-//   tap          a broken surface   -> paint it with the selected property
+//   right thumb  look stick         -> small moves aim directly (finger up =
+//                                       look up); hold at the ring's edge to
+//                                       keep turning, faster the further out
+//   PAINT        near a broken surface, the action button turns into PAINT:
+//                trace the property's glyph to apply it (paintTrace.ts)
 //   buttons      palette (top-left) · BOOTS + GRAB/JUMP (bottom-right) ·
 //                menu (top-right: next room, reset, camera, gyro look)
 //
 // Pure UI + input: it perturbs the sim only through HumanControls (fixed-step
 // intent + one-shot verbs), never on the scripted window.game path.
 import type { Scene } from "@babylonjs/core/scene";
-import { Capacitor } from "@capacitor/core";
-import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
-import type { HumanControls, PaintResult } from "./humanInput";
+import type { HumanControls } from "./humanInput";
+import { feel, NATIVE } from "./haptics";
 import { isDebug } from "./device";
 import { PAINT_PALETTE, type GameState, type PaintProperty } from "../types";
 
@@ -40,9 +42,13 @@ function uiScale(): number {
 const DEAD_ZONE = 0.12;
 /** Look sensitivity for a finger drag (rad per CSS px). */
 const LOOK_SENS = 0.0045;
-/** A touch shorter + stiller than this is a TAP (paint), not a drag. */
-const TAP_MAX_MS = 280;
-const TAP_MAX_PX = 12;
+/** Look stick: holding the knob out at the ring keeps turning at up to these
+ *  rates (rad/s). The turn starts at EDGE_START of the radius and reaches full
+ *  speed at EDGE_FULL (a little past the ring, so pushing further = faster). */
+const EDGE_YAW = 2.4;
+const EDGE_PITCH = 1.5;
+const EDGE_START = 0.7;
+const EDGE_FULL = 1.25;
 /** Touches starting in this left fraction of the screen drive the joystick. */
 const STICK_ZONE = 0.42;
 const DEG = Math.PI / 180;
@@ -68,6 +74,9 @@ const CSS = `
   margin: calc(-28px * var(--s)) 0 0 calc(-28px * var(--s));
   background: rgba(207,232,255,0.55); box-shadow: 0 0 16px rgba(140,217,255,0.5); }
 .t-stick-base.idle { opacity: 0.45; }
+.t-stick-base.look { border-color: rgba(255,214,140,0.4); }
+.t-stick-knob.look { background: rgba(255,214,140,0.5); box-shadow: 0 0 16px rgba(255,192,77,0.45); }
+.t-stick-base.look.idle { opacity: 0.3; }
 .t-palette { position: absolute; top: max(10px, env(safe-area-inset-top));
   left: max(12px, env(safe-area-inset-left)); display: flex; gap: 10px;
   transform: scale(var(--s)); transform-origin: top left; }
@@ -84,6 +93,7 @@ const CSS = `
 .t-btn { width: 72px; height: 72px; border-radius: 50%; background: rgba(8,14,28,0.6);
   box-shadow: inset 0 0 0 2px rgba(207,232,255,0.3); font-size: 11px; letter-spacing: 0.05em; }
 .t-btn.big { width: 88px; height: 88px; font-size: 13px; }
+.t-btn.paint { background: rgba(255,192,77,0.25); box-shadow: inset 0 0 0 2px #ffc04d, 0 0 18px rgba(255,192,77,0.45); }
 .t-btn.on { background: rgba(140,217,255,0.28); box-shadow: inset 0 0 0 2px #8cd9ff, 0 0 18px rgba(140,217,255,0.4); }
 .t-btn:active, .t-swatch:active { transform: scale(0.94); }
 .t-menu-btn { position: absolute; top: max(10px, env(safe-area-inset-top));
@@ -184,9 +194,32 @@ export function createTouchInput(deps: TouchInputDeps): void {
     placeStick(x, y, x, y);
   };
   showIdleStick();
+
+  // Look stick (right): same floating visuals, amber-tinted. Idle ring sits
+  // above the action buttons.
+  const lookBase = el("div", "t-stick-base look idle", root);
+  const lookKnob = el("div", "t-stick-knob look", root);
+  const lookIdlePos = (): [number, number] => [
+    window.innerWidth - Math.max(24, window.innerWidth * 0.06) - (STICK_RADIUS + 12) * scale,
+    window.innerHeight - (STICK_RADIUS + 150) * scale,
+  ];
+  const placeLook = (bx: number, by: number, kx: number, ky: number): void => {
+    lookBase.style.left = `${bx}px`;
+    lookBase.style.top = `${by}px`;
+    lookKnob.style.left = `${kx}px`;
+    lookKnob.style.top = `${ky}px`;
+  };
+  const showIdleLook = (): void => {
+    const [x, y] = lookIdlePos();
+    lookBase.classList.add("idle");
+    placeLook(x, y, x, y);
+  };
+  showIdleLook();
+
   window.addEventListener("resize", () => {
     applyScale();
     if (stickId === null) showIdleStick();
+    if (lookId === null) showIdleLook();
   });
 
   // ---- toast ---------------------------------------------------------------
@@ -198,71 +231,41 @@ export function createTouchInput(deps: TouchInputDeps): void {
     window.clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => toast.classList.remove("show"), 1500);
   };
-  // Native iOS build: real Taptic Engine feedback via Capacitor Haptics. Web:
-  // navigator.vibrate (Android only; iOS Safari has no vibration API).
-  const NATIVE = Capacitor.isNativePlatform();
-  type Feel = "success" | "error" | "warning" | "tick";
-  const feel = (kind: Feel): void => {
-    try {
-      if (NATIVE) {
-        if (kind === "tick") void Haptics.impact({ style: ImpactStyle.Light });
-        else
-          void Haptics.notification({
-            type:
-              kind === "success"
-                ? NotificationType.Success
-                : kind === "error"
-                  ? NotificationType.Error
-                  : NotificationType.Warning,
-          });
-      } else {
-        navigator.vibrate?.(kind === "success" ? 18 : kind === "tick" ? 6 : [10, 40, 10]);
-      }
-    } catch {
-      /* unsupported */
-    }
-  };
 
-  const labelOf = (id: string | null): string => {
-    if (!id) return "";
-    return getState().paintSurfaces.find((s) => s.id === id)?.label ?? id;
-  };
-
-  const onTap = (x: number, y: number): void => {
-    const r: PaintResult = controls.paintAtScreen(x, y);
-    switch (r.outcome) {
-      case "repaired":
-        say(`Repaired: ${labelOf(r.id)}`, "good");
-        feel("success");
-        break;
-      case "wrong":
-        say("Rejected — wrong property", "bad");
-        feel("error");
-        break;
-      case "locked":
-        say("Locked — something's in the way", "warn");
-        feel("warning");
-        break;
-      case "far":
-        say("Too far — get closer", "warn");
-        break;
-      case "miss":
-        break; // tapping empty space is fine — no nagging
-    }
-  };
-
-  // ---- gestures: joystick (left) + look (right) + tap-to-paint -------------
+  // ---- gestures: joystick (left) + look (right) ------------------------------
   interface Track {
     role: "stick" | "look";
     x0: number;
     y0: number;
     x: number;
     y: number;
-    t0: number;
-    moved: number;
   }
   const tracks = new Map<number, Track>();
   let stickId: number | null = null;
+  let lookId: number | null = null;
+
+  const updateLookKnob = (t: Track): void => {
+    const vx = t.x - t.x0;
+    const vy = t.y - t.y0;
+    const len = Math.hypot(vx, vy);
+    const k = len > stickR ? stickR / len : 1;
+    placeLook(t.x0, t.y0, t.x0 + vx * k, t.y0 + vy * k);
+  };
+
+  // Edge-hold turning, per rendered frame while the look knob is held out.
+  scene.onBeforeRenderObservable.add(() => {
+    if (lookId === null) return;
+    const t = tracks.get(lookId);
+    if (!t) return;
+    const vx = t.x - t.x0;
+    const vy = t.y - t.y0;
+    const len = Math.hypot(vx, vy);
+    const f = Math.min(1, Math.max(0, (len / stickR - EDGE_START) / (EDGE_FULL - EDGE_START)));
+    if (f <= 0) return;
+    const dt = Math.min(0.1, scene.getEngine().getDeltaTime() / 1000);
+    // Screen y grows downward: knob up -> look up.
+    controls.lookRadians((vx / len) * EDGE_YAW * f * dt, (-vy / len) * EDGE_PITCH * f * dt);
+  });
 
   const updateStick = (t: Track): void => {
     const vx = t.x - t.x0;
@@ -285,20 +288,23 @@ export function createTouchInput(deps: TouchInputDeps): void {
     layer.setPointerCapture?.(e.pointerId);
     const inStickZone = e.clientX < window.innerWidth * STICK_ZONE;
     const role: Track["role"] = inStickZone && stickId === null ? "stick" : "look";
+    // Only one look stick; any extra right-side finger still drag-looks.
     const t: Track = {
       role,
       x0: e.clientX,
       y0: e.clientY,
       x: e.clientX,
       y: e.clientY,
-      t0: e.timeStamp,
-      moved: 0,
     };
     tracks.set(e.pointerId, t);
     if (role === "stick") {
       stickId = e.pointerId;
       base.classList.remove("idle");
       placeStick(t.x0, t.y0, t.x0, t.y0);
+    } else if (lookId === null) {
+      lookId = e.pointerId;
+      lookBase.classList.remove("idle");
+      placeLook(t.x0, t.y0, t.x0, t.y0);
     }
   });
 
@@ -310,9 +316,13 @@ export function createTouchInput(deps: TouchInputDeps): void {
     const dy = e.clientY - t.y;
     t.x = e.clientX;
     t.y = e.clientY;
-    t.moved = Math.max(t.moved, Math.hypot(t.x - t.x0, t.y - t.y0));
     if (t.role === "stick") updateStick(t);
-    else controls.lookRadians(dx * LOOK_SENS, -dy * LOOK_SENS); // finger up -> look up
+    else {
+      // Direct aim: finger motion turns the view like a mouse (finger up ->
+      // look up); the edge-hold turn is added per frame above.
+      controls.lookRadians(dx * LOOK_SENS, -dy * LOOK_SENS);
+      if (e.pointerId === lookId) updateLookKnob(t);
+    }
   });
 
   const endTrack = (e: PointerEvent, isCancel: boolean): void => {
@@ -324,8 +334,10 @@ export function createTouchInput(deps: TouchInputDeps): void {
       controls.setStick(0, 0);
       showIdleStick();
     }
-    const quick = e.timeStamp - t.t0 <= TAP_MAX_MS;
-    if (!isCancel && quick && t.moved <= TAP_MAX_PX) onTap(e.clientX, e.clientY);
+    if (e.pointerId === lookId) {
+      lookId = null;
+      showIdleLook();
+    }
   };
   layer.addEventListener("pointerup", (e) => endTrack(e, false));
   layer.addEventListener("pointercancel", (e) => endTrack(e, true));
@@ -465,13 +477,13 @@ export function createTouchInput(deps: TouchInputDeps): void {
     intro,
     "The ship's software is failing and reality is glitching out. " +
       "Read each broken surface's symptom, pick the property that fixes it, " +
-      "and tap the surface to paint it.",
+      "then walk up to it, press PAINT and trace the glyph with your finger.",
   );
   el(
     "p",
     "",
     intro,
-    "Left thumb: move · Right thumb: look · BOOTS: walk on any surface · GRAB: hold a rail",
+    "Left thumb: move · Right thumb: look · BOOTS: walk on any surface · GRAB: hold a rail · PAINT: when a broken surface is in reach",
   );
   const introGo = el("button", "", el("div", "row", intro), "Start");
   let seen = false;
@@ -514,11 +526,20 @@ export function createTouchInput(deps: TouchInputDeps): void {
       bootsBtn.classList.toggle("on", s.booted);
       bootsBtn.textContent = s.booted ? "BOOTS ON" : "BOOTS";
     }
-    const act = s.booted ? (s.airborne ? "IN AIR" : "JUMP") : s.grabbing ? "RELEASE" : "GRAB";
+    const act = controls.paintTarget()
+      ? "PAINT"
+      : s.booted
+        ? s.airborne
+          ? "IN AIR"
+          : "JUMP"
+        : s.grabbing
+          ? "RELEASE"
+          : "GRAB";
     if (act !== lastAction) {
       lastAction = act;
       actionBtn.textContent = act;
       actionBtn.classList.toggle("on", s.grabbing);
+      actionBtn.classList.toggle("paint", act === "PAINT");
     }
     const clear = s.doorOpen && s.paintSurfaces.length > 0;
     if (clear !== lastWin) {

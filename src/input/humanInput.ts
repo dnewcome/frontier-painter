@@ -46,15 +46,15 @@ export interface HumanInputDeps {
   paint: (id: string) => boolean;
   /** Load the next playable paint scenario. */
   cycleScenario: () => void;
+  /** PAINT pressed with a surface in range: open the trace gesture for it. */
+  requestPaint: (id: string) => void;
 }
 
-/** What happened when the player tried to paint at a screen point. */
-export type PaintOutcome = "repaired" | "wrong" | "locked" | "far" | "miss";
-export interface PaintResult {
-  outcome: PaintOutcome;
-  /** The surface the ray hit (null on a miss). */
-  id: string | null;
-}
+/** What happened when a traced paint stroke was applied to a surface. */
+export type PaintOutcome = "repaired" | "wrong" | "locked";
+
+/** How close (m) you must be to a broken surface for PAINT to appear. */
+export const PAINT_RANGE = 3.5;
 
 /** Shared control surface driven by keyboard/mouse AND the touch UI. */
 export interface HumanControls {
@@ -64,11 +64,14 @@ export interface HumanControls {
    *  x = strafe right, y = forward. (0,0) releases it. */
   setStick(x: number, y: number): void;
   toggleBoots(): void;
-  /** Context action: booted -> push off; floating -> grab / release. */
+  /** Context action: a broken surface in range -> PAINT (opens the trace);
+   *  else booted -> jump; floating -> grab / release. */
   action(): void;
   toggleCamera(): void;
-  /** Paint the surface under a viewport point (CSS px) with the selected color. */
-  paintAtScreen(x: number, y: number): PaintResult;
+  /** The broken, paintable surface within PAINT_RANGE (nearest), or null. */
+  paintTarget(): string | null;
+  /** Apply the selected property to surface `id` (after a completed trace). */
+  paintSurface(id: string): PaintOutcome;
   isBooted(): boolean;
   isGrabbing(): boolean;
 }
@@ -195,7 +198,47 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
     updateHint();
   };
 
+  // Nearest broken surface you can paint right now (available = not blocked
+  // by an unrepaired prerequisite), measured to its bounding box.
+  const paintTarget = (): string | null => {
+    const open = new Set(
+      paintField.states().filter((st) => st.available && !st.satisfied).map((st) => st.id),
+    );
+    if (open.size === 0 || player.isGrabbing()) return null;
+    const p = player.getPosition();
+    let best: string | null = null;
+    let bestD = PAINT_RANGE;
+    for (const m of paintField.pickables()) {
+      const id = paintField.idForMesh(m);
+      if (!id || !open.has(id)) continue;
+      const bb = m.getBoundingInfo().boundingBox;
+      const lo = bb.minimumWorld;
+      const hi = bb.maximumWorld;
+      const dx = Math.max(lo.x - p[0], 0, p[0] - hi.x);
+      const dy = Math.max(lo.y - p[1], 0, p[1] - hi.y);
+      const dz = Math.max(lo.z - p[2], 0, p[2] - hi.z);
+      const d = Math.hypot(dx, dy, dz);
+      if (d <= bestD) {
+        bestD = d;
+        best = id;
+      }
+    }
+    return best;
+  };
+
+  const paintSurface = (id: string): PaintOutcome => {
+    const before = paintField.states().find((st) => st.id === id);
+    if (deps.paint(id)) return "repaired";
+    return before && !before.available ? "locked" : "wrong";
+  };
+
   const action = (): void => {
+    const target = paintTarget();
+    if (target) {
+      exitLock(); // the trace needs the real cursor on desktop
+      deps.requestPaint(target);
+      return;
+    }
     if (player.isBooted()) {
       // Boots-on jump: stay magnetized and fly to the nearest surface (no-op
       // while already in the air). Turn the boots OFF to float free.
@@ -218,30 +261,6 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
     const raw = player.isBooted() ? cur.pitch - pitchUp : cur.pitch + pitchUp;
     const pitch = raw > clamp ? clamp : raw < -clamp ? -clamp : raw;
     player.setFacing(cur.yaw + yawRight, pitch);
-  };
-
-  // Paint whatever broken surface a ray through (x, y) hits first.
-  const paintAtCanvasPoint = (cx: number, cy: number): PaintResult => {
-    const pick = scene.pick(cx, cy, (m) => paintField.idForMesh(m) !== null);
-    if (!pick?.hit || !pick.pickedMesh) return { outcome: "miss", id: null };
-    const id = paintField.idForMesh(pick.pickedMesh);
-    if (!id) return { outcome: "miss", id: null };
-    if (pick.distance > config.paintReach) return { outcome: "far", id };
-    const before = paintField.states().find((s) => s.id === id);
-    if (deps.paint(id)) return { outcome: "repaired", id };
-    return { outcome: before && !before.available ? "locked" : "wrong", id };
-  };
-
-  const paintAtScreen = (x: number, y: number): PaintResult => {
-    const rect = canvas?.getBoundingClientRect();
-    return paintAtCanvasPoint(x - (rect?.left ?? 0), y - (rect?.top ?? 0));
-  };
-
-  // Desktop F: paint at the screen-center crosshair (camera forward).
-  const paintAtCrosshair = (): void => {
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    paintAtCanvasPoint(rect.width / 2, rect.height / 2);
   };
 
   const debug = isDebug();
@@ -272,9 +291,14 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
         case "Digit3":
           deps.selectColor(PAINT_PALETTE[2]);
           break;
-        case "KeyF":
-          paintAtCrosshair();
+        case "KeyF": {
+          const target = paintTarget();
+          if (target) {
+            exitLock();
+            deps.requestPaint(target);
+          }
           break;
+        }
         case "KeyP": // developer: skip to the next room
           if (debug) deps.cycleScenario();
           break;
@@ -387,7 +411,8 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
     toggleBoots,
     action,
     toggleCamera,
-    paintAtScreen,
+    paintTarget,
+    paintSurface,
     isBooted: () => player.isBooted(),
     isGrabbing: () => player.isGrabbing(),
   };

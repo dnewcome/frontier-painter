@@ -6,10 +6,11 @@
 // swipes. Closed-loop: it polls game state rather than guessing timings, because
 // this path runs in real time (the rAF loop), not window.game.step().
 //
-//   first-run card -> Start -> wrong property rejected -> rail frosted ->
+//   first-run card -> Start -> PAINT + trace: wrong property rejected, then the
+//   cold spiral frosts the rail ->
 //   joystick to the rail -> GRAB -> joystick pulls along the rail -> swipe to aim
-//   at the conduit -> tap it conductive -> ROOM CLEAR, exit door opens + lights ->
-//   RELEASE, swipe to face the door, joystick through it -> room 2 loads
+//   at the conduit -> let go, PAINT + trace the bolt -> ROOM CLEAR, door lights ->
+//   swipe to face the door, joystick through it -> room 2 loads
 //
 // Exits non-zero unless the console powers on AND the door leads to room 2. Outputs
 // demos/<RUN_LABEL>/ (default "mobile"): frames/, demo.gif, demo.mp4.
@@ -33,6 +34,9 @@ const IPHONE_UA = IPAD
   : "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 " +
     "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 const RAIL_START = [0, 1.2, -6];
+// Aim swipes stay inside the look stick's direct-aim zone (< 70% of its 56 px
+// ring, scaled up on iPad) so they never trigger the edge-hold turn.
+const AIM_MAX = Math.round(56 * 0.6 * (IPAD ? 1.33 : 1));
 
 const outDir = path.join(ROOT, "demos", RUN_LABEL);
 const framesDir = path.join(outDir, "frames");
@@ -130,10 +134,18 @@ async function main() {
       const s = window.game.getState().paintSurfaces.find((x) => x.id === sid);
       return s ? window.game.projectToScreen(s.anchor) : null;
     }, id);
-  const tapSurface = async (id) => {
-    const p = await anchorOnScreen(id);
-    assert(p, `${id} is on screen`);
-    await page.touchscreen.tap(p[0], p[1]);
+  /** PAINT (the action button) -> trace the glyph along the overlay's guide
+   *  points with a real finger. `midShot` captures a frame half-way. */
+  const paintByTrace = async (midShot) => {
+    await page.locator('.t-btn[data-role="action"]', { hasText: "PAINT" }).tap();
+    await page.locator("#paint-trace.open").waitFor();
+    const pts = JSON.parse(await page.locator("#paint-trace").getAttribute("data-points"));
+    await touch("touchStart", pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) {
+      await touch("touchMove", pts[i][0], pts[i][1]);
+      if (midShot && i === Math.floor(pts.length * 0.6)) await shot(midShot);
+    }
+    await touch("touchEnd");
   };
   const surf = (s, id) => s.paintSurfaces.find((x) => x.id === id);
 
@@ -149,18 +161,20 @@ async function main() {
     await page.getByRole("button", { name: "Start" }).tap();
     await shot("phone-ui");
 
-    // 03 wrong property -> rejected
+    // 03 wrong property: the rail is in reach (PAINT), trace CONDUCTIVE -> rejected
     await page.locator('.t-swatch[data-color="conductive"]').tap();
-    await tapSurface("access-rail");
-    await page.locator(".t-toast", { hasText: "Rejected" }).waitFor();
+    await paintByTrace();
+    await page.locator("#paint-trace .msg", { hasText: "Rejected" }).waitFor();
     assert(!surf(await st(), "access-rail").satisfied, "03 rail still broken");
     await shot("rejected");
+    await page.locator("#paint-trace").waitFor({ state: "hidden" });
 
-    // 04 right property -> frosted into a handhold
+    // 04 right property: trace the COLD spiral -> frosted into a handhold
     await page.locator('.t-swatch[data-color="cold"]').tap();
-    await tapSurface("access-rail");
-    await page.locator(".t-toast", { hasText: "Repaired" }).waitFor();
+    await paintByTrace("tracing-cold");
+    await page.locator("#paint-trace .msg", { hasText: "Repaired" }).waitFor();
     assert(surf(await st(), "access-rail").satisfied, "04 rail repaired");
+    await page.locator("#paint-trace").waitFor({ state: "hidden" });
     await shot("frost-rail");
 
     // 05 joystick forward to the rail
@@ -190,19 +204,23 @@ async function main() {
     // center, so swipe by (error / 2.2). Off screen -> search to the right.
     const cx = VIEWPORT.width / 2;
     const cy = VIEWPORT.height / 2;
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 40; i++) {
       const p = await anchorOnScreen("power-conduit");
       if (p && Math.abs(p[0] - cx) < 45 && Math.abs(p[1] - cy) < 45) break;
-      const clamp = (v) => Math.max(-70, Math.min(70, v));
+      const clamp = (v) => Math.max(-AIM_MAX, Math.min(AIM_MAX, v));
       // Object right of center -> look right (finger right); above -> look up (finger up).
       const fdx = p ? clamp((p[0] - cx) / 2.2) : 60;
       const fdy = p ? clamp((p[1] - cy) / 2.2) : 0;
       await swipe(640, 220, 640 + fdx, 220 + fdy);
     }
-    await shot("aim-conduit");
+    // Let go of the rail: the conduit is in reach, so the button turns to PAINT.
+    await page.locator('.t-btn[data-role="action"]').tap();
+    await page.waitForFunction(() => !window.game.getState().grabbing);
+    await page.locator('.t-btn[data-role="action"]', { hasText: "PAINT" }).waitFor();
+    await shot("conduit-in-reach");
     await page.locator('.t-swatch[data-color="conductive"]').tap();
-    await tapSurface("power-conduit");
-    await page.locator(".t-toast", { hasText: "Repaired" }).waitFor();
+    await paintByTrace("tracing-bolt");
+    await page.locator("#paint-trace .msg", { hasText: "Repaired" }).waitFor();
 
     // 09 room clear -> ROOM CLEAR flash, the exit door opens and lights up
     await page.locator("#exit-cue .flash.on").waitFor({ timeout: 10_000 });
@@ -210,20 +228,20 @@ async function main() {
     await page.waitForFunction(() => window.game.getState().doorProgress >= 1);
     await shot("room-clear");
 
-    // 10 let go of the rail, turn to face the doorway (closed-loop look swipes)
-    await page.locator('.t-btn[data-role="action"]').tap();
-    await page.waitForFunction(() => !window.game.getState().grabbing);
+    // 10 turn to face the doorway (closed-loop look swipes)
+    await page.locator("#paint-trace").waitFor({ state: "hidden" });
     const exitOnScreen = () =>
       page.evaluate(() => window.game.projectToScreen(window.game.getState().exitAnchor));
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 40; i++) {
       const p = await exitOnScreen();
       if (p && Math.abs(p[0] - cx) < 30 && Math.abs(p[1] - cy) < 30) break;
-      const clamp = (v) => Math.max(-70, Math.min(70, v));
+      const clamp = (v) => Math.max(-AIM_MAX, Math.min(AIM_MAX, v));
       const fdx = p ? clamp((p[0] - cx) / 2.2) : 60;
       const fdy = p ? clamp((p[1] - cy) / 2.2) : 0;
       await swipe(640, 220, 640 + fdx, 220 + fdy);
     }
-    assert(await exitOnScreen(), "10 facing the exit door");
+    const pd = await exitOnScreen();
+    assert(pd && Math.abs(pd[0] - cx) < 60 && Math.abs(pd[1] - cy) < 60, "10 facing the exit door");
     await shot("face-door");
 
     // 11 joystick forward, through the door -> fade to room 2's title card

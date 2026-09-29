@@ -119,3 +119,20 @@ test("desktop: room-skip (P) and camera (C) keys are debug-only", async ({ page 
   expect(room1).not.toBe(room0);
   expect(cam1).not.toBe(cam0);
 });
+
+test("desktop: F near a broken surface opens the trace; dragging the glyph paints it", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
+  await expect(page.locator("#paint-mark")).toContainText("[F]");
+  await page.keyboard.press("Digit1"); // cold
+  await page.keyboard.press("KeyF");
+  await expect(page.locator("#paint-trace")).toBeVisible();
+  const pts: [number, number][] = JSON.parse((await page.locator("#paint-trace").getAttribute("data-points")) ?? "[]");
+  await page.mouse.move(...pts[0]);
+  await page.mouse.down();
+  for (const p of pts.slice(1)) await page.mouse.move(...p);
+  await page.mouse.up();
+  await expect(page.locator("#paint-trace .msg")).toContainText("Repaired");
+  const s = await page.evaluate(() => window.game.getState());
+  expect(s.paintSurfaces.find((x) => x.id === "access-rail")!.satisfied).toBe(true);
+});

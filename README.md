@@ -9,9 +9,9 @@ colors, it's *physics* — paint a dead rail `cold` and it frosts into a grabbab
 broken surface takes exactly **one** correct property ("right property, right
 place") — the puzzle is deducing which. **Magnetic boots** let you walk across
 any surface — floor, walls, ceiling. Jumping with the boots on keeps you
-magnetized: gravity pulls you toward the **nearest** surface, so a hop off the
-floor lands you on the ceiling, and a running jump near a wall lands you on the
-wall. Turn the boots off to float free.
+magnetized: a hop comes back down on the surface you left, unless its arc
+carries you closer to another surface — jump right beside a wall, or run at one
+and jump, and you land on the wall. Turn the boots off to float free.
 
 Built with **TypeScript + Vite + Babylon.js**. Movement is a **custom kinematic
 zero-g controller** (velocity + damping, no gravity) with **analytic room
@@ -39,8 +39,14 @@ push to `main`.
 
 - **Left thumb** — floating joystick: thrust while floating, walk with boots on,
   pull hand-over-hand while holding a rail
-- **Right thumb** — drag to look (finger up → look up)
-- **Tap a broken surface** — paint it with the selected property
+- **Right thumb** — look stick (appears where you touch): small moves aim
+  directly like a mouse (finger up → look up); push the knob to the ring's edge
+  and hold to keep turning — the further out, the faster
+- **PAINT** — walk or float up to a broken surface (within ~3.5 m): a PAINT
+  marker appears over it and the action button turns into **PAINT**. Press it
+  and **trace the property's glyph** with your finger — cold = spiral,
+  conductive = lightning bolt, magnetic = horseshoe. Stray off the line or lift
+  your finger and the stroke resets; finish it and the paint is applied.
 - **Palette** (top-left) — cold · conductive · magnetic
 - **BOOTS** / **GRAB·JUMP** (bottom-right) — mag boots on/off; grab a rail, or
   jump while booted
@@ -53,7 +59,8 @@ too hot to grip") rather than the answer — diagnosing the fix is the puzzle.
 ## Desktop controls
 
 - **1 / 2 / 3** — select brush property: cold · conductive · magnetic
-- **F** — paint the broken surface at the crosshair with the selected property
+- **F** (or **Space**) near a broken surface — open the paint trace; drag the
+  mouse along the glyph to apply the selected property (**Esc** cancels)
 - **B** — toggle magnetic boots (plant / float). First-person while booted.
 - **WASD** — walk + strafe (booted) / thrust (floating)
 - **Mouse** — look (floating *and* booted). Vertical look is inverted (mouse up →

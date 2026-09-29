@@ -56,16 +56,6 @@ async function touchDrag(
   await c.detach();
 }
 
-/** Screen point (CSS px) of a paint surface's on-surface anchor. */
-async function surfacePoint(page: Page, id: string): Promise<[number, number]> {
-  const p = await page.evaluate((sid) => {
-    const s = window.game.getState().paintSurfaces.find((x) => x.id === sid);
-    return s ? window.game.projectToScreen(s.anchor) : null;
-  }, id);
-  if (!p) throw new Error(`surface ${id} not on screen`);
-  return p;
-}
-
 test("phone UI: touch layout + symptom-only objective HUD", async ({ page }) => {
   const errors = await boot(page);
   await expect(page.locator("#touch-ui")).toBeVisible();
@@ -81,26 +71,59 @@ test("phone UI: touch layout + symptom-only objective HUD", async ({ page }) => 
   expect(errors).toEqual([]);
 });
 
-test("phone: tap a surface to paint it (wrong property rejected, right one repairs)", async ({ page }) => {
+/** Trace the open paint overlay's glyph with a real finger (CDP touch),
+ *  following its guide points. `upTo` < 1 lifts the finger part-way. */
+async function traceGlyph(page: Page, upTo = 1): Promise<void> {
+  const pts: [number, number][] = JSON.parse(
+    (await page.locator("#paint-trace").getAttribute("data-points")) ?? "[]",
+  );
+  expect(pts.length).toBeGreaterThan(10);
+  const c = await page.context().newCDPSession(page);
+  const tp = (x: number, y: number) => [{ x, y, id: 3 }];
+  await c.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(...pts[0]) });
+  const n = Math.max(2, Math.round((pts.length - 1) * upTo));
+  for (let i = 1; i <= n; i++) {
+    await c.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: tp(...pts[i]) });
+  }
+  await c.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await c.detach();
+}
+
+test("phone: walk up, PAINT, trace the glyph (wrong property rejected, right one repairs)", async ({ page }) => {
   const errors = await boot(page);
+  const action = page.locator('.t-btn[data-role="action"]');
+  // Spawn is ~2 m from the dead rail: in reach, so the action button is PAINT
+  // and a PAINT marker names the surface.
+  await expect(action).toHaveText("PAINT");
+  await expect(page.locator("#paint-mark")).toContainText("Access rail");
 
   // Wrong property first: conductive on the overheated rail -> rejected.
   await page.locator('.t-swatch[data-color="conductive"]').tap();
-  expect((await state(page)).selectedColor).toBe("conductive");
-  await page.touchscreen.tap(...(await surfacePoint(page, "access-rail")));
-  await expect(page.locator(".t-toast")).toContainText("Rejected");
-  let rail = (await state(page)).paintSurfaces.find((s) => s.id === "access-rail")!;
-  expect(rail.satisfied).toBe(false);
+  await action.tap();
+  await expect(page.locator("#paint-trace")).toBeVisible();
+  await expect(page.locator("#paint-trace .head")).toContainText("CONDUCTIVE");
+  await traceGlyph(page);
+  await expect(page.locator("#paint-trace .msg")).toContainText("Rejected");
+  await expect(page.locator("#paint-trace")).toBeHidden();
+  expect((await state(page)).paintSurfaces.find((s) => s.id === "access-rail")!.satisfied).toBe(false);
 
-  // Right property: cold -> repaired, and it froze into a grabbable handhold.
+  // Lifting the finger half-way does nothing (stroke resets, no paint).
   await page.locator('.t-swatch[data-color="cold"]').tap();
-  await page.touchscreen.tap(...(await surfacePoint(page, "access-rail")));
-  await expect(page.locator(".t-toast")).toContainText("Repaired: Access rail");
+  await action.tap();
+  await traceGlyph(page, 0.5);
+  await expect(page.locator("#paint-trace .msg")).toContainText("Keep your finger down");
+  expect((await state(page)).paintSurfaces.find((s) => s.id === "access-rail")!.satisfied).toBe(false);
+
+  // Full cold trace -> repaired, and it froze into a grabbable handhold.
+  await traceGlyph(page);
+  await expect(page.locator("#paint-trace .msg")).toContainText("Repaired");
   const s = await state(page);
-  rail = s.paintSurfaces.find((x) => x.id === "access-rail")!;
-  expect(rail.satisfied).toBe(true);
+  expect(s.paintSurfaces.find((x) => x.id === "access-rail")!.satisfied).toBe(true);
   expect(s.handholds.length).toBe(1);
   await expect(page.locator("#hud .hud-objective")).toContainText("repaired");
+  await expect(page.locator("#paint-trace")).toBeHidden();
+  // Nothing else is in reach from spawn (the conduit is across the room).
+  await expect(action).not.toHaveText("PAINT");
   expect(errors).toEqual([]);
 });
 
@@ -128,6 +151,11 @@ test("phone: right-thumb drag looks (finger up -> look up)", async ({ page }) =>
 
 test("phone: BOOTS button plants you; action button becomes JUMP", async ({ page }) => {
   const errors = await boot(page);
+  // Repair the rail (in reach of spawn) so PAINT doesn't take the button.
+  await page.evaluate(() => {
+    window.game.selectColor("cold");
+    window.game.paint("access-rail");
+  });
   await page.locator('.t-btn[data-role="boots"]').tap();
   await expect.poll(async () => (await state(page)).booted).toBe(true);
   await expect(page.locator('.t-btn[data-role="action"]')).toHaveText("JUMP");
@@ -147,4 +175,33 @@ test("phone: menu has no room-skip / camera items unless ?debug=1", async ({ pag
   await page.getByRole("button", { name: "Menu" }).tap();
   await expect(page.getByRole("button", { name: /Next room/ })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /Camera/ })).toHaveCount(1);
+});
+
+test("phone: holding the right look stick at its edge keeps turning; releasing stops", async ({ page }) => {
+  const errors = await boot(page);
+  const yaw = async () => {
+    const f = (await state(page)).facing;
+    return Math.atan2(f[0], f[2]);
+  };
+  const c = await page.context().newCDPSession(page);
+  const tp = (x: number, y: number) => [{ x, y, id: 5 }];
+  // Press on the right side and push the knob out to the right edge (80 px >
+  // the 56 px ring), then hold still.
+  await c.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(620, 200) });
+  for (let i = 1; i <= 8; i++) {
+    await c.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: tp(620 + i * 10, 200) });
+  }
+  await expect(page.locator(".t-stick-base.look")).not.toHaveClass(/idle/);
+  const y0 = await yaw();
+  await page.waitForTimeout(700);
+  const y1 = await yaw();
+  // Finger didn't move, but the view kept turning right (yaw grows toward +X).
+  expect(y1 - y0).toBeGreaterThan(0.3);
+  await c.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await c.detach();
+  const y2 = await yaw();
+  await page.waitForTimeout(400);
+  expect(Math.abs((await yaw()) - y2)).toBeLessThan(1e-6); // stopped
+  await expect(page.locator(".t-stick-base.look")).toHaveClass(/idle/);
+  expect(errors).toEqual([]);
 });

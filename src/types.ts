@@ -168,10 +168,11 @@ export const DEFAULT_CONFIG: SimConfig = {
   surfaceTweenSteps: 18, // ~0.3 s at 1/60
   reEngageDistance: 1.5,
   pushOffSpeed: 3.0,
-  // A straight-up hop rises ~2.5 m: past the room's midline, so a jump off the
-  // floor lands you on the ceiling (and vice versa). Tangential walk speed
-  // carries into the hop, so a running jump near a wall lands on that wall.
-  hopSpeed: 5.5,
+  // A straight-up hop peaks ~1 m off the surface (v^2 / 2g) and comes back
+  // down on it. Gravity only switches mid-hop if the arc brings you closer to
+  // another surface than to the one you left — i.e. jumping right beside a
+  // wall, or running at one (walk speed carries into the hop).
+  hopSpeed: 3.5,
   magGravity: 6.0,
   airControl: 3.0,
   paintReach: 12,
