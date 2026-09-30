@@ -82,7 +82,19 @@ export interface HumanControls {
  *  you mostly drift; input just nudges relative to the view. */
 const THRUST_ACCEL = 7;
 /** Mouse-look sensitivity (rad per pixel of pointer movement). */
-const LOOK_SENS = 0.0025;
+const LOOK_SENS = 0.0012; // ~1300 px of mouse travel per 90° at 1x
+/** Player sensitivity multiplier, adjusted with [ and ], remembered. */
+const SENS_KEY = "fp_mouse_sens";
+const SENS_MIN = 0.25;
+const SENS_MAX = 3;
+function readSens(): number {
+  try {
+    const v = parseFloat(localStorage.getItem(SENS_KEY) ?? "");
+    return v >= SENS_MIN && v <= SENS_MAX ? v : 1;
+  } catch {
+    return 1;
+  }
+}
 
 function clamp1(v: number): number {
   return v > 1 ? 1 : v < -1 ? -1 : v;
@@ -269,12 +281,41 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
     player.setFacing(cur.yaw + yawRight, pitch);
   };
 
+  // Mouse sensitivity: [ slower, ] faster (x1.25 steps), shown briefly.
+  let sens = readSens();
+  const sensTag = document.createElement("div");
+  sensTag.id = "sens-tag";
+  sensTag.style.cssText =
+    "position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);padding:8px 16px;" +
+    "border-radius:999px;background:rgba(6,12,24,0.85);color:#e8f2ff;" +
+    "font:600 15px system-ui,sans-serif;pointer-events:none;z-index:35;display:none";
+  document.body.appendChild(sensTag);
+  let sensTimer = 0;
+  const nudgeSens = (factor: number): void => {
+    sens = Math.min(SENS_MAX, Math.max(SENS_MIN, Math.round(sens * factor * 100) / 100));
+    try {
+      localStorage.setItem(SENS_KEY, String(sens));
+    } catch {
+      /* ignore */
+    }
+    sensTag.textContent = `Mouse sensitivity ${sens.toFixed(2)}×   ([ slower · ] faster)`;
+    sensTag.style.display = "block";
+    window.clearTimeout(sensTimer);
+    sensTimer = window.setTimeout(() => (sensTag.style.display = "none"), 1400);
+  };
+
   const debug = isDebug();
   window.addEventListener("keydown", (e) => {
     if (!e.repeat) {
       switch (e.code) {
         case "KeyB":
           toggleBoots();
+          break;
+        case "BracketLeft":
+          nudgeSens(1 / 1.25);
+          break;
+        case "BracketRight":
+          nudgeSens(1.25);
           break;
         case "Space":
           action();
@@ -348,7 +389,7 @@ export function createHumanInput(deps: HumanInputDeps): HumanControls {
     if (Math.abs(dx) > 300 || Math.abs(dy) > 300) return;
     // Floating + a held button = a free-hand draw stroke, not look.
     if (!player.isBooted() && e.buttons !== 0) return;
-    lookRadians(dx * LOOK_SENS, -dy * LOOK_SENS); // mouse up (dy<0) -> look up
+    lookRadians(dx * LOOK_SENS * sens, -dy * LOOK_SENS * sens); // mouse up (dy<0) -> look up
   });
 
   // Movement intent in the fixed-step pump so it integrates in lockstep with the

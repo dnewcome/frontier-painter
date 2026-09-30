@@ -63,7 +63,8 @@ too hot to grip") rather than the answer — diagnosing the fix is the puzzle.
   mouse along the glyph to apply the selected property (**Esc** cancels)
 - **B** — toggle magnetic boots (plant / float). First-person while booted.
 - **WASD** — walk + strafe (booted) / thrust (floating)
-- **Mouse** — look (floating *and* booted). Vertical look is inverted (mouse up →
+- **Mouse** — look (floating *and* booted); **[** / **]** make it slower /
+  faster (remembered). Vertical look is inverted (mouse up →
   look up). **Click the view to capture the cursor** so it can't leave the
   window; **Esc** releases it.
 - **Space** — boots on: **jump** (stay magnetized, land on the nearest surface)

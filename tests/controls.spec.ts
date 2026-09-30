@@ -47,10 +47,10 @@ test("desktop: mouse up looks up (floating)", async ({ page }) => {
       my,
     );
   const y0 = (await state(page)).facing[1];
-  await fire(-40);
+  await fire(-80);
   const y1 = (await state(page)).facing[1];
   expect(y1).toBeGreaterThan(y0 + 0.05);
-  await fire(80);
+  await fire(160);
   expect((await state(page)).facing[1]).toBeLessThan(y1 - 0.05);
   expect(errors).toEqual([]);
 });
@@ -135,4 +135,27 @@ test("desktop: F near a broken surface opens the trace; dragging the glyph paint
   await expect(page.locator("#paint-trace .msg")).toContainText("Repaired");
   const s = await page.evaluate(() => window.game.getState());
   expect(s.paintSurfaces.find((x) => x.id === "access-rail")!.satisfied).toBe(true);
+});
+
+test("desktop: [ and ] adjust mouse sensitivity (remembered)", async ({ page }) => {
+  await page.goto("/?room=frostgap");
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
+  const turn = async () => {
+    const f0 = (await page.evaluate(() => window.game.getState().facing));
+    await page.evaluate(() =>
+      window.dispatchEvent(new MouseEvent("mousemove", { movementX: 100, movementY: 0, buttons: 0 })),
+    );
+    const f1 = (await page.evaluate(() => window.game.getState().facing));
+    return Math.abs(Math.atan2(f1[0], f1[2]) - Math.atan2(f0[0], f0[2]));
+  };
+  const base = await turn();
+  expect(base).toBeCloseTo(0.12, 2); // 100 px x 0.0012 rad/px
+  await page.keyboard.press("BracketRight");
+  await page.keyboard.press("BracketRight");
+  await expect(page.locator("#sens-tag")).toContainText("1.56");
+  expect(await turn()).toBeCloseTo(base * 1.5625, 2);
+  await page.reload();
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
+  expect(await page.evaluate(() => localStorage.getItem("fp_mouse_sens"))).toBe("1.56");
+  expect(await turn()).toBeCloseTo(0.12 * 1.56, 2);
 });
