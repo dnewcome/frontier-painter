@@ -50,8 +50,8 @@ push to `main`.
 - **Palette** (top-left) — cold · conductive · magnetic
 - **BOOTS** / **GRAB·JUMP** (bottom-right) — mag boots on/off; grab a rail, or
   jump while booted
-- **☰ menu** — restart room, optional **gyro look** (turn the phone to look
-  around; needs the HTTPS link)
+- **☰ menu** — title screen, restart room, replay tutorial, music on/off
+  (developer items — next room, camera, gyro look — only with `?debug=1`)
 
 The phone HUD describes each broken surface by its **symptom** ("Overheated —
 too hot to grip") rather than the answer — diagnosing the fix is the puzzle.

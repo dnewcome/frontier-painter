@@ -12,7 +12,8 @@
 //   PAINT        near a broken surface, the action button turns into PAINT:
 //                trace the property's glyph to apply it (paintTrace.ts)
 //   buttons      palette (top-left) · BOOTS + GRAB/JUMP (bottom-right) ·
-//                menu (top-right: next room, reset, camera, gyro look)
+//                menu (top-right: title screen, restart, replay tutorial, music;
+//                next room / camera / gyro look only with ?debug=1)
 //
 // Pure UI + input: it perturbs the sim only through HumanControls (fixed-step
 // intent + one-shot verbs), never on the scripted window.game path.
@@ -30,6 +31,8 @@ export interface TouchInputDeps {
   cycleScenario: () => void;
   reset: () => void;
   replayTutorial: () => void;
+  /** Bring the title screen back over the current room. */
+  showTitle: () => void;
   musicOn: () => boolean;
   setMusic: (on: boolean) => void;
 }
@@ -426,6 +429,7 @@ export function createTouchInput(deps: TouchInputDeps): void {
   const menuBtn = el("button", "t-menu-btn", root, "☰");
   menuBtn.setAttribute("aria-label", "Menu");
   const menu = el("div", "t-menu", root);
+  const mTitle = el("button", "", menu, "⌂  Title screen");
   const mReset = el("button", "", menu, "↺  Restart room");
   const mTutorial = el("button", "", menu, "🎓  Replay tutorial");
   const mMusic = el("button", "", menu, "");
@@ -437,11 +441,11 @@ export function createTouchInput(deps: TouchInputDeps): void {
     deps.setMusic(!deps.musicOn());
     musicLabel();
   });
-  // Room skip + camera toggle are developer tools (?debug=1 only).
+  // Room skip, camera toggle and gyro look are developer tools (?debug=1 only).
   const debug = isDebug();
   const mNext = debug ? el("button", "", menu, "▶  Next room (debug)") : null;
   const mCam = debug ? el("button", "", menu, "🎥  Camera toggle (debug)") : null;
-  const mGyro = el("button", "", menu, "🧭  Gyro look: off");
+  const mGyro = debug ? el("button", "", menu, "🧭  Gyro look: off (debug)") : null;
   if (!NATIVE) {
     el("div", "tip", menu, "Tip: Share → Add to Home Screen to play fullscreen.");
   }
@@ -459,6 +463,10 @@ export function createTouchInput(deps: TouchInputDeps): void {
   mReset.addEventListener("click", () => {
     deps.reset();
     closeMenu();
+  });
+  mTitle.addEventListener("click", () => {
+    closeMenu();
+    deps.showTitle();
   });
   mTutorial.addEventListener("click", () => {
     deps.replayTutorial();
@@ -509,9 +517,9 @@ export function createTouchInput(deps: TouchInputDeps): void {
     lastMotionT = 0;
     if (on) window.addEventListener("devicemotion", onMotion);
     else window.removeEventListener("devicemotion", onMotion);
-    mGyro.textContent = `🧭  Gyro look: ${on ? "on" : "off"}`;
+    if (mGyro) mGyro.textContent = `🧭  Gyro look: ${on ? "on" : "off"} (debug)`;
   };
-  mGyro.addEventListener("click", () => {
+  mGyro?.addEventListener("click", () => {
     if (gyroOn) {
       setGyro(false);
       return;

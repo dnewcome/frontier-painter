@@ -44,9 +44,12 @@ body.on-title :is(#hud, #hud-obj, #touch-ui, #exit-cue, #paint-mark, #pointer-hi
 `;
 
 export function showTitle(deps: TitleDeps): void {
-  const style = document.createElement("style");
-  style.textContent = CSS;
-  document.head.appendChild(style);
+  if (!document.getElementById("title-css")) {
+    const style = document.createElement("style");
+    style.id = "title-css";
+    style.textContent = CSS;
+    document.head.appendChild(style);
+  }
 
   const root = document.createElement("div");
   root.id = "title";

@@ -15,5 +15,5 @@ GUIDELINE 2.1 — INFORMATION PROVIDED IN ADVANCE
 HOW TO PLAY (landscape; left thumb moves, right thumb looks from the amber ring)
 - Rooms 1-4 are a tutorial with on-screen prompts and glowing beacons: look + fly, grab a rail, mag boots (walk on the ceiling), boots jump.
 - Room 5 (The Frost Gap): walk up to the rail, pick COLD in the palette (top-left), tap PAINT and trace the spiral. Grab the frosted rail (GRAB) and pull yourself across with the left stick. Then pick CONDUCTIVE, PAINT the power conduit (trace the lightning bolt). The exit door opens; go through it.
-- Menu (top-right): restart room, replay tutorial, music on/off, optional gyro look (uses the motion sensor only if switched on).
+- Menu (top-right): back to the title screen, restart room, replay tutorial, music on/off.
 - Progress is saved on the device only.

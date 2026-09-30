@@ -14,7 +14,7 @@ MOVE LIKE AN ASTRONAUT
 LEARN AS YOU GO
 A short tutorial teaches one move per room, with clear prompts and glowing beacons — then the puzzles begin. Some surfaces are blocked by others: right property, right place, right order.
 
-• Twin-stick touch controls designed for iPhone and iPad, with optional gyro look
+• Twin-stick touch controls designed for iPhone and iPad
 • Original generative ambient soundtrack
 • Your progress is saved automatically
 • No ads, no accounts, no tracking — plays fully offline

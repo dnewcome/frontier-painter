@@ -161,18 +161,27 @@ test("phone: BOOTS button plants you; action button becomes JUMP", async ({ page
   expect(errors).toEqual([]);
 });
 
-test("phone: menu has no room-skip / camera items unless ?debug=1", async ({ page }) => {
+test("phone: menu — title screen item; no room-skip / camera / gyro unless ?debug=1", async ({ page }) => {
   await boot(page);
   await page.getByRole("button", { name: "Menu" }).tap();
   await expect(page.getByRole("button", { name: /Restart room/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Next room/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Camera/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Gyro/ })).toHaveCount(0);
+  // "Title screen" brings the title back over the current room; Continue resumes it.
+  await page.getByRole("button", { name: /Title screen/ }).tap();
+  await expect(page.locator("#title button.go")).toContainText("Continue");
+  await expect(page.locator("#title button.go")).toContainText("The Frost Gap");
+  await page.locator("#title button.go").tap();
+  await expect(page.locator("#title")).toHaveCount(0);
+  expect(await page.evaluate(() => window.game.getState().scenario)).toBe("frostgap");
 
   await page.goto("/?debug=1&room=frostgap");
   await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
   await page.getByRole("button", { name: "Menu" }).tap();
   await expect(page.getByRole("button", { name: /Next room/ })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /Camera/ })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /Gyro/ })).toHaveCount(1);
 });
 
 test("phone: holding the right look stick at its edge keeps turning; releasing stops", async ({ page }) => {

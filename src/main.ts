@@ -127,8 +127,11 @@ function boot(): void {
   // Title screen on every normal launch (a ?room= dev/test link skips it;
   // ?title=1 forces it).
   const q = new URLSearchParams(window.location.search);
-  if (q.get("title") === "1" || !q.has("room")) {
-    const idx = LEVELS.findIndex((l) => l.id === startRoom);
+  // Also reachable from the menu ("Title screen"): Continue resumes the room
+  // you're in, New game restarts the tutorial.
+  const openTitle = (): void => {
+    if (document.getElementById("title")) return;
+    const idx = LEVELS.findIndex((l) => l.id === paintField.scenario());
     showTitle({
       resumeLabel: idx > 0 ? `Room ${idx + 1} · ${LEVELS[idx].title}` : null,
       newGame: () => {
@@ -139,7 +142,8 @@ function boot(): void {
       setMusic: (on) => audio.setMusic(on),
       onStart: () => audio.unlock(),
     });
-  }
+  };
+  if (q.get("title") === "1" || !q.has("room")) openTitle();
 
   // Sound cues from state changes (visual/audio only; never touches the sim).
   let prevAudio = { key: "", door: false, planted: false, air: false, grab: false, color: "", grabT: 0 };
@@ -284,6 +288,7 @@ function boot(): void {
       reset: () => api.reset(),
       musicOn: () => audio.musicOn(),
       setMusic: (on: boolean) => audio.setMusic(on),
+      showTitle: openTitle,
       replayTutorial: () =>
         transition.play(`ROOM 1 · ${LEVELS[0].sector}`, LEVELS[0].title.toUpperCase(), () =>
           enterRoom(LEVELS[0].id),
