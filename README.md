@@ -34,6 +34,8 @@ push to `main`.
 - **On iPad:** same link, or the TestFlight build (universal iPhone + iPad app,
   landscape). The touch controls scale up for the larger screen.
 - **On desktop:** same link; keyboard + mouse controls below.
+- The web version shows an **FPS / frame-time** readout bottom-left (not in the
+  iOS app); add `?fps=0` to hide it.
 
 ## Touch controls (phone / tablet)
 

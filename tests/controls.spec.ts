@@ -159,3 +159,12 @@ test("desktop: [ and ] adjust mouse sensitivity (remembered)", async ({ page }) 
   expect(await page.evaluate(() => localStorage.getItem("fp_mouse_sens"))).toBe("1.56");
   expect(await turn()).toBeCloseTo(0.12 * 1.56, 2);
 });
+
+test("web: FPS counter shows (and ?fps=0 hides it)", async ({ page }) => {
+  await page.goto("/?room=frostgap");
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
+  await expect(page.locator("#fps")).toContainText(/\d+ fps · \d+\.\d ms/, { timeout: 5_000 });
+  await page.goto("/?room=frostgap&fps=0");
+  await page.waitForFunction(() => !!window.game && window.game.isReady(), null, { timeout: 30_000 });
+  await expect(page.locator("#fps")).toHaveCount(0);
+});

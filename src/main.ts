@@ -29,6 +29,7 @@ import { LEVELS, asRoom, levelNumber, nextLevel } from "./levels";
 import { createObjectives } from "./tutorial/objectives";
 import { createAudio } from "./audio/audio";
 import { showTitle } from "./hud/title";
+import { createFpsCounter } from "./hud/fps";
 
 function boot(): void {
   const canvas = document.getElementById("renderCanvas");
@@ -295,6 +296,9 @@ function boot(): void {
         ),
     });
   }
+
+  // FPS / frame-time readout (web only; ?fps=0 hides it).
+  createFpsCounter(game.engine);
 
   game.start();
 }
