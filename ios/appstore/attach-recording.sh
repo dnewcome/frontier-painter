@@ -12,8 +12,9 @@ T=$HOME/.claude/skills/app-store-release/tools
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=${TMPDIR:-/tmp}/frontierpainter-review${VERSION:+-$VERSION}.mp4
 
-echo "transcoding $SRC -> $OUT (H.264, 30 fps, <=1366 px wide)"
-ffmpeg -y -loglevel error -i "$SRC" -vf "scale='min(1366,iw)':-2:flags=lanczos,fps=30" \
+echo "transcoding $SRC -> $OUT (H.264, 30 fps, <=1366 px tall)"
+# Cap the HEIGHT (landscape gameplay would lose legibility if capped by width).
+ffmpeg -y -loglevel error -i "$SRC" -vf "scale=-2:'min(1366,ih)':flags=lanczos,fps=30" \
   -c:v libx264 -preset slow -crf 23 -pix_fmt yuv420p -movflags +faststart -an "$OUT"
 ls -l "$OUT"
 

@@ -1,6 +1,6 @@
 GUIDELINE 2.1 — INFORMATION PROVIDED IN ADVANCE
 
-1. Screen recording: a recording on a physical device, from launch through the tutorial and a puzzle, is attached to this submission.
+1. Screen recording: attached to these review notes (App Review Attachments), captured on a physical iPhone in landscape (two takes joined, 3.5 min). Take 1 starts on the Home Screen: app launch, title screen, then the tutorial rooms: look and fly in zero gravity, grab a rail and pull along it, mag boots onto the ceiling and down a wall. Take 2: the boots-jump room (jumping onto a wall), then the first puzzle, The Frost Gap: the rail is painted COLD (walk up, tap PAINT, trace the spiral glyph) and repaired; COLD on the power conduit is rejected (wrong property); CONDUCTIVE (trace the lightning bolt) repairs it; the room clears and the next room loads. Two incoming notification banners are blurred. The app has no account, login, purchase, or user-generated content, so there are no such flows to record.
 
 2. Purpose and audience: Frontier Painter is a single-player first-person puzzle game for general audiences (no objectionable content). You repair a broken spaceship by "painting" physical properties (cold, conductive, magnetic) onto broken surfaces, while moving in zero gravity, grabbing rails and walking on walls with magnetic boots. Value: a short, original puzzle/exploration game with a built-in tutorial.
 
